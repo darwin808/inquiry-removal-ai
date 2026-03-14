@@ -4,6 +4,10 @@
     {
       "src": "api/**/*.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -20,8 +24,16 @@
       "dest": "/api/call-status.js"
     },
     {
+      "src": "^/api/test-web-call$",
+      "dest": "/api/test-web-call.js"
+    },
+    {
       "src": "^/api/(.*)$",
       "dest": "/api/$1.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
     }
   ]
 }

@@ -120,6 +120,21 @@ async function listPhoneNumbers() {
 }
 
 // ---------------------------------------------------------------------------
+// Web Call Operations (browser-based testing, no phone number needed)
+// ---------------------------------------------------------------------------
+
+async function createWebCall({ agentId, dynamicVariables, metadata }) {
+  const body = { agent_id: agentId };
+  if (dynamicVariables) body.retell_llm_dynamic_variables = dynamicVariables;
+  if (metadata) body.metadata = metadata;
+
+  return retellFetch("/v2/create-web-call", {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -134,5 +149,6 @@ module.exports = {
   createPhoneCall,
   getCall,
   listCalls,
-  listPhoneNumbers
+  listPhoneNumbers,
+  createWebCall
 };
