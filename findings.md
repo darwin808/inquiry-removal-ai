@@ -40,4 +40,4 @@
 ## Existing Account State
 - API Key: (in .env, not committed)
 - Existing agent: "Patient Screening (from template)" — conversation flow type
-- Phone numbers: NONE (need to purchase)
+- Phone numbers: +1(661)475-6926 (purchased 2026-03-14)
