@@ -3,7 +3,7 @@
 /**
  * POST /api/launch-call
  *
- * Launches an outbound Experian dispute call via Retell AI.
+ * Launches an outbound Experian dispute call via Bland AI.
  *
  * Request body:
  * {
@@ -14,25 +14,17 @@
  * }
  */
 
-const retell = require("../src/lib/retell-client");
+const bland = require("../src/lib/bland-client");
 const { buildExperianPacket, buildCallMetadata } = require("../src/lib/packet-builder");
-
-const EXPERIAN_AGENT_ID = process.env.RETELL_EXPERIAN_AGENT_ID;
-const FROM_NUMBER = process.env.RETELL_FROM_NUMBER;
-const EXPERIAN_NUMBER = process.env.EXPERIAN_DISPUTE_NUMBER || "+18003111784";
-const DEFAULT_TRANSFER = process.env.FUNDHUB_REP_NUMBER;
+const { buildExperianCallConfig } = require("../src/agents/experian-prompt");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Validate config
-  if (!EXPERIAN_AGENT_ID) {
-    return res.status(500).json({ error: "RETELL_EXPERIAN_AGENT_ID not configured" });
-  }
-  if (!FROM_NUMBER) {
-    return res.status(500).json({ error: "RETELL_FROM_NUMBER not configured" });
+  if (!process.env.BLAND_API_KEY) {
+    return res.status(500).json({ error: "BLAND_API_KEY not configured" });
   }
 
   const { clientData, inquiries, transferNumber, clientId } = req.body || {};
@@ -41,29 +33,26 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "clientData is required" });
   }
 
-  const transfer = transferNumber || DEFAULT_TRANSFER;
+  const transfer = transferNumber || process.env.FUNDHUB_REP_NUMBER;
   if (!transfer) {
     return res.status(400).json({ error: "transferNumber is required (or set FUNDHUB_REP_NUMBER env var)" });
   }
 
   try {
     // Build the call packet (dynamic variables for the agent)
-    const dynamicVariables = buildExperianPacket(clientData, inquiries || [], transfer);
+    const requestData = buildExperianPacket(clientData, inquiries || [], transfer);
     const metadata = buildCallMetadata(clientId || "unknown", "EX");
 
-    // Launch the call via Retell
-    const call = await retell.createPhoneCall({
-      fromNumber: FROM_NUMBER,
-      toNumber: EXPERIAN_NUMBER,
-      agentId: EXPERIAN_AGENT_ID,
-      dynamicVariables,
-      metadata
-    });
+    // Build Bland AI call config from prompt template
+    const callConfig = buildExperianCallConfig(requestData, { metadata });
+
+    // Launch the call via Bland AI
+    const call = await bland.createCall(callConfig);
 
     return res.status(200).json({
       ok: true,
       callId: call.call_id,
-      status: call.call_status,
+      status: call.status || "queued",
       bureau: "EX",
       metadata
     });

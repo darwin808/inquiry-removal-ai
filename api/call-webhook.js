@@ -3,81 +3,250 @@
 /**
  * POST /api/call-webhook
  *
- * Receives webhook events from Retell AI after calls.
- * Events: call_started, call_ended, call_analyzed
+ * Receives webhook events from Bland AI after calls.
+ * Bland sends a single webhook POST when the call completes.
  *
- * Updates call tracking and triggers next workflow steps.
+ * Updates:
+ * 1. Airtable INQUIRY_REMOVAL_CASES — case_status, ai_call_status, remover_notes
+ * 2. GHL contact — ai_call_master_status, ai_transfer_status custom fields + activity note
+ *
+ * Case status mapping by outcome:
+ *   transferred / reached_human → "Awaiting Remover" (human takes over)
+ *   no_answer / busy           → "Call Failed"       (retryable)
+ *   failed / unknown           → "Call Failed"       (needs investigation)
+ *   left_voicemail             → "Call Failed"       (retryable)
+ *   completed_short            → "Call Failed"       (IVR likely hung up)
+ *
+ * The AI caller must NOT mark the case Completed — that's the human remover's job.
+ *
+ * Bland webhook payload:
+ * {
+ *   "call_id": "...",
+ *   "status": "completed" | "no-answer" | "busy" | "failed" | "voicemail",
+ *   "completed": true/false,
+ *   "call_length": 123.4,  (seconds)
+ *   "to": "+1...",
+ *   "from": "+1...",
+ *   "transcripts": [{ user: "...", agent: "...", ... }],
+ *   "summary": "...",
+ *   "metadata": { case_id, ghl_contact_id, client_id, bureau, ... },
+ *   "answered_by": "human" | "voicemail",
+ *   "transferred_to": "+1..." (if transfer happened)
+ * }
  */
+
+const INQUIRY_REMOVAL_CASES_TABLE = "tblYOliwtT0RETm2S";
+
+// Outcomes that mean the call progressed far enough to hand off to a human
+const HANDOFF_OUTCOMES = new Set(["transferred", "reached_human"]);
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const event = req.body;
-  if (!event || !event.event) {
+  const payload = req.body;
+  if (!payload || !payload.call_id) {
     return res.status(400).json({ error: "Invalid webhook payload" });
   }
 
-  const { event: eventType, call } = event;
+  const {
+    call_id,
+    status,
+    completed,
+    call_length,
+    transcripts,
+    summary,
+    metadata,
+    answered_by,
+    transferred_to
+  } = payload;
 
-  console.log(`[webhook] ${eventType} — call_id=${call?.call_id || "unknown"}`);
+  console.log(`[webhook] call_id=${call_id}, status=${status}, completed=${completed}, length=${call_length}s`);
 
-  switch (eventType) {
-    case "call_started":
-      await handleCallStarted(call);
-      break;
-
-    case "call_ended":
-      await handleCallEnded(call);
-      break;
-
-    case "call_analyzed":
-      await handleCallAnalyzed(call);
-      break;
-
-    default:
-      console.log(`[webhook] Unknown event type: ${eventType}`);
+  if (transferred_to) {
+    console.log(`[webhook] transferred_to=${transferred_to}`);
   }
 
-  return res.status(200).json({ ok: true });
+  if (summary) {
+    console.log(`[webhook] summary=${summary}`);
+  }
+
+  // Determine call outcome
+  const outcome = determineOutcome(payload);
+  const caseStatus = HANDOFF_OUTCOMES.has(outcome) ? "Awaiting Remover" : "Call Failed";
+  console.log(`[webhook] outcome=${outcome}, case_status=${caseStatus}`);
+
+  // Extract IDs from metadata
+  const caseId = metadata?.case_id;
+  const ghlContactId = metadata?.ghl_contact_id;
+
+  // -------------------------------------------------------------------------
+  // 1. Update Airtable INQUIRY_REMOVAL_CASES
+  // -------------------------------------------------------------------------
+  if (caseId && process.env.AIRTABLE_API_KEY) {
+    try {
+      await updateCaseAfterCall(caseId, {
+        call_id,
+        outcome,
+        caseStatus,
+        summary,
+        transcripts,
+        call_length,
+        transferred_to
+      });
+      console.log(`[webhook] Updated INQUIRY_REMOVAL_CASES ${caseId} → ${caseStatus}`);
+    } catch (err) {
+      // Log but don't fail the webhook — Bland needs a 200
+      console.error(`[webhook] Failed to update case ${caseId}:`, err.message);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. Update GHL contact (custom fields + activity note)
+  // -------------------------------------------------------------------------
+  if (ghlContactId) {
+    try {
+      await updateGhlContact(ghlContactId, {
+        call_id,
+        outcome,
+        caseStatus,
+        summary,
+        call_length,
+        transferred_to,
+        caseId
+      });
+      console.log(`[webhook] Updated GHL contact ${ghlContactId}`);
+    } catch (err) {
+      // Non-fatal — GHL update is best-effort
+      console.error(`[webhook] Failed to update GHL contact ${ghlContactId}:`, err.message);
+    }
+  } else {
+    console.log("[webhook] No ghl_contact_id in metadata, skipping GHL update");
+  }
+
+  return res.status(200).json({
+    ok: true,
+    outcome,
+    case_status: caseStatus,
+    case_id: caseId || null,
+    ghl_contact_id: ghlContactId || null
+  });
 };
 
-async function handleCallStarted(call) {
-  console.log(`[call_started] call_id=${call.call_id}, to=${call.to_number}`);
-  // TODO: Update Airtable INQUIRY_LOG.call_state = "dialing"
-  // TODO: Update GHL ai_call_master_status = "calling"
-}
+// ---------------------------------------------------------------------------
+// Airtable: Update INQUIRY_REMOVAL_CASES record
+// ---------------------------------------------------------------------------
 
-async function handleCallEnded(call) {
-  const duration = call.end_timestamp && call.start_timestamp
-    ? Math.round((call.end_timestamp - call.start_timestamp) / 1000)
-    : null;
+/**
+ * Update INQUIRY_REMOVAL_CASES after AI call completes.
+ *
+ * - Successful calls (transferred/reached_human) → "Awaiting Remover"
+ * - Failed calls → "Call Failed"
+ * - The AI caller must NOT mark the case Completed — that's the human remover's job.
+ */
+async function updateCaseAfterCall(
+  caseId,
+  { call_id, outcome, caseStatus, summary, transcripts, call_length, transferred_to }
+) {
+  const airtable = require("../src/lib/airtable-client");
 
-  console.log(`[call_ended] call_id=${call.call_id}, duration=${duration}s, status=${call.call_status}`);
-  console.log(`[call_ended] disconnect_reason=${call.disconnection_reason || "unknown"}`);
-
-  // TODO: Update Airtable INQUIRY_LOG with call results
-  // TODO: Update GHL ai_call_master_status based on outcome
-  // TODO: If transfer succeeded, update ai_transfer_status = "connected"
-}
-
-async function handleCallAnalyzed(call) {
-  const analysis = call.call_analysis || {};
-
-  console.log(`[call_analyzed] call_id=${call.call_id}`);
-  console.log(`[call_analyzed] hit_ivr=${analysis.hit_ivr}`);
-  console.log(`[call_analyzed] reached_human=${analysis.reached_human}`);
-  console.log(`[call_analyzed] reached_fraud_dept=${analysis.reached_fraud_dept}`);
-  console.log(`[call_analyzed] transfer_initiated=${analysis.transfer_initiated}`);
-  console.log(`[call_analyzed] ivr_outcome=${analysis.ivr_outcome}`);
-  console.log(`[call_analyzed] summary=${analysis.call_summary}`);
-
-  if (analysis.failure_reason) {
-    console.log(`[call_analyzed] FAILURE: ${analysis.failure_reason}`);
+  // Build a concise transcript excerpt (first 1000 chars)
+  let transcriptExcerpt = "";
+  if (Array.isArray(transcripts) && transcripts.length > 0) {
+    transcriptExcerpt = transcripts
+      .map((t) => `${t.user ? "Human" : "AI"}: ${t.user || t.agent || ""}`)
+      .join("\n")
+      .substring(0, 1000);
   }
 
-  // TODO: Write analysis to Airtable INQUIRY_LOG
-  // TODO: If transfer succeeded → update GHL ai_handoff_at
-  // TODO: If failed → check retry logic, maybe re-queue
+  const notes = [
+    `Call ID: ${call_id}`,
+    `Outcome: ${outcome}`,
+    `Duration: ${call_length ? Math.round(call_length) + "s" : "N/A"}`,
+    transferred_to ? `Transferred to: ${transferred_to}` : null,
+    summary ? `Summary: ${summary}` : null,
+    transcriptExcerpt ? `\nTranscript:\n${transcriptExcerpt}` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const fields = {
+    case_status: caseStatus,
+    ai_call_status: outcome,
+    remover_notes: notes
+  };
+
+  // Track transfer status separately if a transfer happened
+  if (transferred_to) {
+    fields.ai_transfer_status = "connected";
+  }
+
+  await airtable.updateRecord(INQUIRY_REMOVAL_CASES_TABLE, caseId, fields);
+}
+
+// ---------------------------------------------------------------------------
+// GHL: Update contact custom fields + add activity note
+// ---------------------------------------------------------------------------
+
+/**
+ * Update the GHL contact associated with this inquiry removal call.
+ *
+ * Sets custom fields:
+ *   - ai_call_master_status: overall outcome (transferred, reached_human, failed, etc.)
+ *   - ai_transfer_status: "connected" if warm transfer succeeded
+ *
+ * Adds an activity note summarizing the call result.
+ */
+async function updateGhlContact(
+  contactId,
+  { call_id, outcome, caseStatus, summary, call_length, transferred_to, caseId }
+) {
+  const ghl = require("../src/lib/ghl-client");
+
+  if (!ghl.isConfigured()) {
+    console.log("[webhook] GHL not configured (missing API key or location ID), skipping");
+    return;
+  }
+
+  // Build custom fields update
+  const customFields = {
+    ai_call_master_status: outcome
+  };
+
+  if (transferred_to) {
+    customFields.ai_transfer_status = "connected";
+  }
+
+  // Update custom fields
+  await ghl.updateContactCustomFields(contactId, customFields);
+
+  // Add activity note so the team can see call results in the CRM timeline
+  const noteLines = [
+    `Inquiry Removal AI Call — ${caseStatus}`,
+    `Outcome: ${outcome}`,
+    `Duration: ${call_length ? Math.round(call_length) + "s" : "N/A"}`,
+    caseId ? `Case: ${caseId}` : null,
+    transferred_to ? `Transferred to: ${transferred_to}` : null,
+    summary ? `\n${summary}` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await ghl.addContactNote(contactId, noteLines);
+}
+
+// ---------------------------------------------------------------------------
+// Outcome classification
+// ---------------------------------------------------------------------------
+
+function determineOutcome(payload) {
+  if (payload.transferred_to) return "transferred";
+  if (payload.answered_by === "voicemail") return "left_voicemail";
+  if (payload.status === "no-answer") return "no_answer";
+  if (payload.status === "busy") return "busy";
+  if (payload.status === "failed") return "failed";
+  if (payload.completed && payload.call_length > 30) return "reached_human";
+  if (payload.completed) return "completed_short";
+  return "unknown";
 }

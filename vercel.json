@@ -28,8 +28,8 @@
       "dest": "/api/test-web-call.js"
     },
     {
-      "src": "^/api/(.*)$",
-      "dest": "/api/$1.js"
+      "src": "^/api/schedule-call$",
+      "dest": "/api/schedule-call.js"
     },
     {
       "src": "/(.*)",

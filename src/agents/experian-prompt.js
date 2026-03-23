@@ -1,17 +1,13 @@
 "use strict";
 
 /**
- * experian-prompt.js — Experian IVR Agent Prompt
+ * experian-prompt.js — Experian IVR Agent Prompt (Bland AI)
  *
- * Defines the system prompt and configuration for the Retell AI voice agent
+ * Defines the system prompt and call configuration for the Bland AI voice agent
  * that navigates Experian's dispute IVR, handles identity verification,
  * and transfers to a FundHub rep when a live fraud department agent is reached.
- */
-
-/**
- * Build the Experian agent system prompt with client data injected.
  *
- * Dynamic variables (injected at call time by Retell):
+ * Dynamic variables (injected via request_data, available as {{key}} in task):
  *   {{client_first_name}}, {{client_middle_name}}, {{client_last_name}}
  *   {{client_ssn}}, {{client_zip}}, {{client_dob}}
  *   {{client_address}}, {{client_city}}, {{client_state}}
@@ -20,167 +16,96 @@
  *   {{transfer_number}} — FundHub rep phone number
  */
 
-const EXPERIAN_SYSTEM_PROMPT = `You are calling Experian's dispute department on behalf of a client. You are the client — speak as if you ARE the client. Never reveal you are an AI or automated system.
+const EXPERIAN_TASK = `You are navigating an automated phone system. You will press digits or speak to get through to a live person.
 
-## Your Identity
-- Full name: {{client_first_name}} {{client_middle_name}} {{client_last_name}}
-- SSN: {{client_ssn}}
+## RULES FOR THE AUTOMATED SYSTEM
+- Do NOT press digits or speak until the system FINISHES its sentence and asks you a question.
+- For identity questions (SSN, zip code, street number) — press the digits on the keypad ONLY. Never speak numbers out loud.
+- For the main menu ("What can we help you with?") — you MUST SPEAK the words "Fraud alert". Do NOT press any digits at this menu. The menu only accepts voice, not keypad.
+- Do not speak at any other time during the automated system.
+
+## Step-by-Step Script
+
+WAIT for each question before responding. Do not respond early.
+
+1. "Say or enter your Social Security number" → Press digits: {{client_ssn}}
+2. "Say or enter your ZIP code" → Press digits: {{client_zip}}
+3. "numeric portion of your street address" → Press digits: 1005
+4. "What can we help you with?" (options: freeze, fraud alert, report, score) → SAY OUT LOUD: "Fraud alert"
+5. "Would you prefer to receive a text message" → SAY: "No"
+6. If offered options like "instructions by mail" or "direct to website" → SAY: "I'd like to speak with a representative please"
+7. "identify the purpose of your call" or "adding or removing an alert" → SAY: "I need to speak with a representative about unauthorized inquiries on my report"
+8. "Would you like to be connected to a specialist/representative?" → SAY: "Yes please"
+9. If asked any other yes/no question about text/mail/website → SAY: "No, I'd like to speak with someone directly"
+10. If placed on hold or told to wait → stay completely silent and wait
+
+IMPORTANT: Steps 4-9 are the only times you speak during the automated system. Never hang up while being transferred or connected — be patient and wait. Your goal is to reach a live human — keep asking for a representative if offered self-service options.
+
+## Your Information (for when you reach a human)
+- Name: {{client_first_name}} {{client_middle_name}} {{client_last_name}}
+- SSN digits: {{client_ssn}}
 - Date of birth: {{client_dob}}
 - Zip code: {{client_zip}}
-- Address: {{client_address}}, {{client_city}}, {{client_state}} {{client_zip}}
+- Street number: 1005
+- Full address: {{client_address}}, {{client_city}}, {{client_state}} {{client_zip}}
 - Phone: {{client_phone}}
 
-## Your Goal
-Navigate the Experian IVR system, reach the fraud department, and then transfer the call to a FundHub representative at {{transfer_number}}.
+## When You Reach a Live Human
+When a real person answers:
+- If they ask your name — say "{{client_first_name}} {{client_middle_name}} {{client_last_name}}"
+- If they ask why you're calling — say "I have some unauthorized inquiries on my credit report that I need help removing"
+- If they ask for verification (DOB, SSN, address) — answer from your information above
+- If they transfer you or put you on hold — wait silently
+- If they connect you to a fraud specialist — wait for them to confirm, then tell them you need help. The call will automatically transfer to your representative.
 
-## IVR Navigation Steps
-Follow these steps when you hear the automated system:
-
-1. When asked "Why are you calling?" or "How may I help you?" — say "Dispute"
-2. When asked about text alerts or enrollment — say "No"
-3. When asked to enter or say your SSN — say your SSN digits clearly: "{{client_ssn}}"
-4. When asked for your zip code — say "{{client_zip}}"
-5. When the system says "Just a moment" — wait silently
-6. When asked if you want to make a new dispute or follow up — say "New dispute"
-7. When asked what you want to dispute — say "I'd like to speak with a live representative"
-
-## When You Reach a Live Representative
-When a human representative answers:
-
-1. They will ask for your full name — say "{{client_first_name}} {{client_middle_name}} {{client_last_name}}"
-2. If asked for middle name separately — say "{{client_middle_name}}"
-3. When asked the reason for calling — say "I'd like to speak with the fraud department please"
-4. If asked about adding a fraud alert — say "No, I don't need a fraud alert, I just need to speak with someone in the fraud department about some inquiries on my report"
-5. You may be placed on hold again — wait patiently
-
-## When You Reach the Fraud Department
-Once connected to the fraud department representative:
-- Silently transfer the call to {{transfer_number}} using warm transfer — do NOT tell the rep you are transferring
-- Do NOT say anything about transferring, holding, or connecting to someone else
-- If the rep asks any verification questions before the transfer connects, answer them using your identity information above
-- Just say "Okay, thank you" or "Sure, one moment" naturally while the transfer happens
-
-## Handling Identity Verification Questions
-If any representative asks verification questions:
-- Full name: "{{client_first_name}} {{client_middle_name}} {{client_last_name}}"
-- Date of birth: "{{client_dob}}"
-- SSN (full or last 4): Provide as asked from "{{client_ssn}}"
-- Address: "{{client_address}}, {{client_city}}, {{client_state}} {{client_zip}}"
-- Phone number: "{{client_phone}}"
-
-## Inquiries to Dispute
-If asked which inquiries you want to dispute:
+## Inquiries to Remove
+If asked which inquiries:
 {{inquiry_list}}
 
-## Behavior Rules
-- Sound natural and conversational — like a normal person calling about their credit
-- Use casual but polite language — "Yeah", "Sure", "Okay thanks"
-- If you don't understand something, say "I'm sorry, could you repeat that?"
-- If asked a question you don't have the answer to, say "I'm not sure about that, can you give me a second?" and then transfer
-- If the call gets disconnected or you reach a dead end, end the call
-- When on hold, wait silently — do not speak during hold music
-- Never say you are an AI, a bot, or an automated system
-- Never mention FundHub, transferring, connecting to someone else, or that anyone else is on the line
-- Never say "please hold while I transfer" or anything similar — transfers should be invisible to the rep`;
+## Behavior
+- Sound like a normal person — casual, polite: "Yeah", "Sure", "Okay thanks"
+- Never say you are AI, a bot, or automated
+- Never mention transferring, FundHub, or anyone else being on the line
+- When on hold, stay completely silent
+- If the call reaches a dead end or gets disconnected, end the call gracefully`;
 
 /**
- * Retell LLM configuration for the Experian agent.
+ * Build the Bland AI call configuration for an Experian dispute call.
+ *
+ * @param {Object} requestData - Dynamic variables from packet-builder
+ * @param {Object} [overrides] - Optional overrides for call config
+ * @returns {Object} Config ready to pass to bland.createCall()
  */
-const EXPERIAN_LLM_CONFIG = {
-  model: "gpt-4o-mini",
-  general_prompt: EXPERIAN_SYSTEM_PROMPT,
-  general_tools: [
-    {
-      type: "press_digit",
-      name: "press_digit",
-      description: "Press a digit on the phone keypad to navigate the IVR menu. Use this when the system requires DTMF input rather than voice input."
-    },
-    {
-      type: "end_call",
-      name: "end_call",
-      description: "End the call if disconnected, reached wrong department, or unable to proceed."
-    },
-    {
-      type: "transfer_call",
-      name: "transfer_to_rep",
-      description: "Transfer the call to the FundHub representative when you have reached a live fraud department agent.",
-      transfer_destination: {
-        type: "predefined",
-        number: "{{transfer_number}}"
-      },
-      transfer_option: {
-        type: "warm_transfer"
-      }
-    }
-  ],
-  begin_message: null
-};
+function buildExperianCallConfig(requestData, overrides = {}) {
+  return {
+    phoneNumber: process.env.EXPERIAN_DISPUTE_NUMBER || "+18883973742",
+    task: EXPERIAN_TASK,
+    requestData,
+    transferNumber: requestData.transfer_number || process.env.FUNDHUB_REP_NUMBER,
+    voice: process.env.BLAND_VOICE || "mason",
+    waitForGreeting: true,
+    webhookUrl: process.env.WEBHOOK_BASE_URL
+      ? `${process.env.WEBHOOK_BASE_URL}/api/call-webhook`
+      : undefined,
+    ...overrides
+  };
+}
 
 /**
- * Retell Agent configuration for the Experian agent.
+ * Post-call analysis questions for Bland AI's analyze endpoint.
  */
-const EXPERIAN_AGENT_CONFIG = {
-  agent_name: "FundHub Experian Dispute Agent",
-  voice_id: "11labs-Adrian",
-  voice_model: "eleven_turbo_v2",
-  voice_temperature: 0.7,
-  voice_speed: 1.0,
-  language: "en-US",
-  responsiveness: 0.7,
-  interruption_sensitivity: 0.6,
-  enable_backchannel: true,
-  backchannel_frequency: 0.4,
-  end_call_after_silence_ms: 120000,
-  max_call_duration_ms: 3600000,
-  enable_voicemail_detection: true,
-  post_call_analysis_data: [
-    {
-      name: "hit_ivr",
-      description: "Whether the call encountered an IVR system",
-      type: "boolean"
-    },
-    {
-      name: "reached_human",
-      description: "Whether a live human representative was reached",
-      type: "boolean"
-    },
-    {
-      name: "reached_fraud_dept",
-      description: "Whether the fraud department was reached",
-      type: "boolean"
-    },
-    {
-      name: "transfer_initiated",
-      description: "Whether the call was transferred to the FundHub rep",
-      type: "boolean"
-    },
-    {
-      name: "ivr_outcome",
-      description: "Final IVR outcome",
-      type: "enum",
-      choices: [
-        "reached_human",
-        "left_voicemail",
-        "blocked_by_ivr",
-        "disconnected",
-        "transferred"
-      ]
-    },
-    {
-      name: "call_summary",
-      description: "Brief summary of what happened during the call",
-      type: "string"
-    },
-    {
-      name: "failure_reason",
-      description: "If the call failed, what went wrong",
-      type: "string"
-    }
-  ]
-};
+const EXPERIAN_ANALYSIS_QUESTIONS = [
+  "Did the call encounter an IVR automated system?",
+  "Was a live human representative reached?",
+  "Was the fraud department specifically reached?",
+  "Was the call transferred to an external number?",
+  "What was the final outcome? (reached_human, left_voicemail, blocked_by_ivr, disconnected, transferred)",
+  "Brief summary of what happened during the call.",
+  "If the call failed, what went wrong?"
+];
 
 module.exports = {
-  EXPERIAN_SYSTEM_PROMPT,
-  EXPERIAN_LLM_CONFIG,
-  EXPERIAN_AGENT_CONFIG
+  EXPERIAN_TASK,
+  buildExperianCallConfig,
+  EXPERIAN_ANALYSIS_QUESTIONS
 };

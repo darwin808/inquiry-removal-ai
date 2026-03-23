@@ -3,10 +3,10 @@
 /**
  * GET /api/call-status?call_id=xxx
  *
- * Check the status of an ongoing or completed call.
+ * Check the status of an ongoing or completed call via Bland AI.
  */
 
-const retell = require("../src/lib/retell-client");
+const bland = require("../src/lib/bland-client");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
@@ -19,22 +19,19 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const call = await retell.getCall(callId);
-
-    const duration = call.end_timestamp && call.start_timestamp
-      ? Math.round((call.end_timestamp - call.start_timestamp) / 1000)
-      : null;
+    const call = await bland.getCall(callId);
 
     return res.status(200).json({
       ok: true,
       callId: call.call_id,
-      status: call.call_status,
-      direction: call.direction,
-      fromNumber: call.from_number,
-      toNumber: call.to_number,
-      duration,
-      disconnectReason: call.disconnection_reason || null,
-      analysis: call.call_analysis || null,
+      status: call.queue_status || (call.completed ? "complete" : "in_progress"),
+      completed: call.completed,
+      callLength: call.call_length || null,
+      toNumber: call.to,
+      fromNumber: call.from,
+      answeredBy: call.answered_by || null,
+      transferredTo: call.transferred_to || null,
+      summary: call.summary || null,
       metadata: call.metadata || null
     });
   } catch (err) {

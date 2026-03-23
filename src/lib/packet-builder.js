@@ -4,7 +4,7 @@
  * packet-builder.js — Build call packets from client/CRS data
  *
  * Takes client information and CRS credit data, produces a normalized
- * packet that maps to Retell dynamic variables for the voice agent.
+ * packet that maps to Bland AI request_data variables for the voice agent.
  */
 
 /**
@@ -26,7 +26,7 @@
  * @param {string} inquiries[].creditorName
  * @param {string} inquiries[].date
  * @param {string} transferNumber - FundHub rep phone number (E.164)
- * @returns {Object} Retell dynamic variables object
+ * @returns {Object} Bland AI request_data variables object
  */
 function buildExperianPacket(clientData, inquiries, transferNumber) {
   if (!clientData.firstName || !clientData.lastName) {
