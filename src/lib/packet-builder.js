@@ -8,6 +8,25 @@
  */
 
 /**
+ * Sanitize a string for safe inclusion in prompt text.
+ * Strips characters that could be used for prompt injection.
+ */
+function sanitize(str, maxLen = 100) {
+  return String(str || "")
+    .replace(/[^a-zA-Z0-9\s\-&.,\/()]/g, "")
+    .substring(0, maxLen);
+}
+
+/**
+ * Extract the leading numeric street number from an address line.
+ * e.g. "456 Oak Ave" → "456"
+ */
+function extractStreetNumber(addressLine) {
+  const match = String(addressLine || "").match(/^(\d+)/);
+  return match ? match[1] : "";
+}
+
+/**
  * Build a call packet for an Experian dispute call.
  *
  * @param {Object} clientData - Client identity information
@@ -46,7 +65,7 @@ function buildExperianPacket(clientData, inquiries, transferNumber) {
   const ssnFormatted = `${cleanSSN.slice(0, 3)}-${cleanSSN.slice(3, 5)}-${cleanSSN.slice(5)}`;
 
   const inquiryList = inquiries && inquiries.length > 0
-    ? inquiries.map(inq => `- ${inq.creditorName} (${inq.date})`).join("\n")
+    ? inquiries.map(inq => `- ${sanitize(inq.creditorName)} (${sanitize(inq.date, 10)})`).join("\n")
     : "No specific inquiries listed — dispute all unauthorized inquiries on my Experian report.";
 
   return {
@@ -60,6 +79,7 @@ function buildExperianPacket(clientData, inquiries, transferNumber) {
     client_city: clientData.address.city || "",
     client_state: clientData.address.state || "",
     client_phone: clientData.phone || "",
+    client_street_number: extractStreetNumber(clientData.address.line1),
     inquiry_list: inquiryList,
     transfer_number: transferNumber
   };

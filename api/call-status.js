@@ -7,11 +7,14 @@
  */
 
 const bland = require("../src/lib/bland-client");
+const { requireAuth } = require("../src/lib/auth");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  if (!requireAuth(req, res)) return;
 
   const callId = req.query?.call_id;
   if (!callId) {
@@ -35,9 +38,10 @@ module.exports = async function handler(req, res) {
       metadata: call.metadata || null
     });
   } catch (err) {
+    console.error("call-status lookup failed:", err.message);
     return res.status(500).json({
       ok: false,
-      error: err.message
+      error: "Internal server error"
     });
   }
 };

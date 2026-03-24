@@ -69,7 +69,7 @@ async function updateContactCustomFields(contactId, customFields) {
   }));
 
   return ghlFetch(`/contacts/${contactId}`, {
-    method: "PUT",
+    method: "PATCH",
     body: JSON.stringify({ customFields: customFieldsArray })
   });
 }

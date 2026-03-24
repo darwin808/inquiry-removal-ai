@@ -30,7 +30,7 @@ WAIT for each question before responding. Do not respond early.
 
 1. "Say or enter your Social Security number" → Press digits: {{client_ssn}}
 2. "Say or enter your ZIP code" → Press digits: {{client_zip}}
-3. "numeric portion of your street address" → Press digits: 1005
+3. "numeric portion of your street address" → Press digits: {{client_street_number}}
 4. "What can we help you with?" (options: freeze, fraud alert, report, score) → SAY OUT LOUD: "Fraud alert"
 5. "Would you prefer to receive a text message" → SAY: "No"
 6. If offered options like "instructions by mail" or "direct to website" → SAY: "I'd like to speak with a representative please"
@@ -46,7 +46,7 @@ IMPORTANT: Steps 4-9 are the only times you speak during the automated system. N
 - SSN digits: {{client_ssn}}
 - Date of birth: {{client_dob}}
 - Zip code: {{client_zip}}
-- Street number: 1005
+- Street number: {{client_street_number}}
 - Full address: {{client_address}}, {{client_city}}, {{client_state}} {{client_zip}}
 - Phone: {{client_phone}}
 

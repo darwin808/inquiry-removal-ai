@@ -17,11 +17,14 @@
 const bland = require("../src/lib/bland-client");
 const { buildExperianPacket, buildCallMetadata } = require("../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../src/agents/experian-prompt");
+const { requireAuth } = require("../src/lib/auth");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  if (!requireAuth(req, res)) return;
 
   if (!process.env.BLAND_API_KEY) {
     return res.status(500).json({ error: "BLAND_API_KEY not configured" });
@@ -60,7 +63,7 @@ module.exports = async function handler(req, res) {
     console.error("Launch call failed:", err.message);
     return res.status(500).json({
       ok: false,
-      error: err.message
+      error: "Internal server error"
     });
   }
 };

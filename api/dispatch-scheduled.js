@@ -90,12 +90,13 @@ module.exports = async function handler(req, res) {
 
   // Bearer token auth
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = req.headers["authorization"] || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (token !== cronSecret) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+  if (!cronSecret) {
+    console.error("[dispatch-scheduled] CRON_SECRET not configured");
+    return res.status(500).json({ error: "Server misconfigured" });
+  }
+  const token = (req.headers.authorization || "").replace("Bearer ", "");
+  if (token !== cronSecret) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   if (!process.env.AIRTABLE_API_KEY) {
@@ -120,12 +121,12 @@ module.exports = async function handler(req, res) {
   try {
     const result = await airtable.listRecords(INQUIRY_REMOVAL_CASES_TABLE, {
       filterByFormula: formula,
-      maxRecords: 50
+      maxRecords: 10
     });
     records = result.records || [];
   } catch (err) {
     console.error("[dispatch-scheduled] Failed to query Airtable:", err.message);
-    return res.status(500).json({ ok: false, error: err.message });
+    return res.status(500).json({ ok: false, error: "Internal server error" });
   }
 
   console.log(`[dispatch-scheduled] Found ${records.length} scheduled case(s) to dispatch`);
@@ -174,7 +175,7 @@ module.exports = async function handler(req, res) {
       dispatched++;
     } catch (err) {
       console.error(`[dispatch-scheduled] Failed for case ${caseId}:`, err.message);
-      results.push({ case_id: caseId, status: "failed", error: err.message });
+      results.push({ case_id: caseId, status: "failed", error: "call_failed" });
       failed++;
     }
   }
