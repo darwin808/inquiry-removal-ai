@@ -45,6 +45,23 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // -------------------------------------------------------------------------
+  // Webhook signature verification
+  // -------------------------------------------------------------------------
+  const webhookSecret = process.env.BLAND_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const crypto = require("crypto");
+    const signature = req.headers["x-bland-signature"] || "";
+    const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    const expected = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
+    if (signature !== expected) {
+      console.error("[call-webhook] Invalid webhook signature");
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+  } else {
+    console.warn("[call-webhook] BLAND_WEBHOOK_SECRET not set — signature verification disabled");
+  }
+
   const payload = req.body;
   if (!payload || !payload.call_id) {
     return res.status(400).json({ error: "Invalid webhook payload" });
