@@ -28,6 +28,10 @@
       "dest": "/api/schedule-call.js"
     },
     {
+      "src": "^/api/dispatch-scheduled$",
+      "dest": "/api/dispatch-scheduled.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
