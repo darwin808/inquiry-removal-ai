@@ -8,7 +8,7 @@ jest.mock("../../src/lib/schedule-utils");
 
 const airtable = require("../../src/lib/airtable-client");
 const bland = require("../../src/lib/bland-client");
-const { buildExperianPacket, buildCallMetadata } = require("../../src/lib/packet-builder");
+const { buildExperianPacket, buildCallMetadata, extractClientData } = require("../../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../../src/agents/experian-prompt");
 const { isBusinessHours } = require("../../src/lib/schedule-utils");
 
@@ -64,6 +64,15 @@ beforeEach(() => {
   ;
   airtable.updateRecord = jest.fn().mockResolvedValue({});
 
+  extractClientData.mockReturnValue({
+    firstName: "John",
+    lastName: "Doe",
+    middleName: "",
+    ssn: "123456789",
+    dob: "01/01/1985",
+    phone: "+15551234567",
+    address: { line1: "123 Main St", city: "Miami", state: "FL", zip: "33101" }
+  });
   buildExperianPacket.mockReturnValue({ client_first_name: "Jane", transfer_number: "+15550009999" });
   buildCallMetadata.mockReturnValue({ client_id: "recCLIENT1", bureau: "EX" });
   buildExperianCallConfig.mockReturnValue({ phoneNumber: "+18883973742", task: "..." });

@@ -30,7 +30,7 @@
 
 const airtable = require("../src/lib/airtable-client");
 const bland = require("../src/lib/bland-client");
-const { buildExperianPacket, buildCallMetadata } = require("../src/lib/packet-builder");
+const { buildExperianPacket, buildCallMetadata, extractClientData } = require("../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../src/agents/experian-prompt");
 const { isBusinessHours, nextBusinessHourSlot } = require("../src/lib/schedule-utils");
 const { requireAuth } = require("../src/lib/auth");
@@ -45,22 +45,7 @@ const PII_IDENTITY_TABLE = "tblRwLZR7uHDRb0LW";
 // ---------------------------------------------------------------------------
 // PII_IDENTITY field mapping (verified against Airtable schema)
 // ---------------------------------------------------------------------------
-function extractClientData(piiFields, clientFields) {
-  return {
-    firstName: piiFields.owner_first_name || "",
-    lastName: piiFields.owner_last_name || "",
-    middleName: "",  // PII_IDENTITY has no middle name field
-    ssn: piiFields.ssn_full || "",
-    dob: piiFields.dob || "",
-    phone: piiFields.phone || clientFields.phone || "",
-    address: {
-      line1: piiFields.street1 || "",
-      city: piiFields.city || "",
-      state: piiFields.state || "",
-      zip: piiFields.zip || ""
-    }
-  };
-}
+
 
 // ---------------------------------------------------------------------------
 // Handler

@@ -35,5 +35,11 @@
       "src": "/(.*)",
       "dest": "/public/$1"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/dispatch-scheduled",
+      "schedule": "*/15 13-22 * * 1-5"
+    }
   ]
 }

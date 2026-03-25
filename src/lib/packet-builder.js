@@ -97,7 +97,29 @@ function buildCallMetadata(clientId, bureau, batchId) {
   };
 }
 
+/**
+ * Extract client data from Airtable PII_IDENTITY + CLIENTS fields.
+ * Shared by schedule-call.js and dispatch-scheduled.js.
+ */
+function extractClientData(piiFields, clientFields) {
+  return {
+    firstName: piiFields.owner_first_name || "",
+    lastName: piiFields.owner_last_name || "",
+    middleName: "",
+    ssn: piiFields.ssn_full || "",
+    dob: piiFields.dob || "",
+    phone: piiFields.phone || clientFields.phone || "",
+    address: {
+      line1: piiFields.street1 || "",
+      city: piiFields.city || "",
+      state: piiFields.state || "",
+      zip: piiFields.zip || ""
+    }
+  };
+}
+
 module.exports = {
   buildExperianPacket,
-  buildCallMetadata
+  buildCallMetadata,
+  extractClientData
 };
