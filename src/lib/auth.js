@@ -13,8 +13,8 @@ function requireAuth(req, res) {
     return false;
   }
 
-  const header = req.headers.authorization;
-  if (!header || header !== `Bearer ${secret}`) {
+  const header = (req.headers.authorization || "").trim();
+  if (!header || header !== `Bearer ${secret.trim()}`) {
     res.status(401).json({ error: "Unauthorized" });
     return false;
   }
