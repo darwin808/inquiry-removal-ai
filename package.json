@@ -6,16 +6,22 @@
   "scripts": {
     "dev": "vercel dev",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "jest --verbose"
   },
   "dependencies": {
     "dotenv": "^17.3.1"
   },
   "devDependencies": {
     "eslint": "^8.56.0",
+    "jest": "^30.3.0",
     "prettier": "^3.2.0"
   },
   "engines": {
     "node": ">=18"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/__tests__/**/*.test.js"]
   }
 }
