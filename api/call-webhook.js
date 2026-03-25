@@ -51,7 +51,7 @@ module.exports = async function handler(req, res) {
   const webhookSecret = process.env.BLAND_WEBHOOK_SECRET;
   if (webhookSecret) {
     const crypto = require("crypto");
-    const signature = req.headers["x-bland-signature"] || "";
+    const signature = req.headers["x-webhook-signature"] || "";
     const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
     const expected = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
     if (signature !== expected) {

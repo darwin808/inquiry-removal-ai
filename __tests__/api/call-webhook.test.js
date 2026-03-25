@@ -206,7 +206,7 @@ describe("POST /api/call-webhook", () => {
 
     const req = {
       method: "POST",
-      headers: { "x-bland-signature": validSig },
+      headers: { "x-webhook-signature": validSig },
       body: TRANSFERRED_PAYLOAD
     };
     const res = makeRes();
@@ -218,7 +218,7 @@ describe("POST /api/call-webhook", () => {
     process.env.BLAND_WEBHOOK_SECRET = "my-secret";
     const req = {
       method: "POST",
-      headers: { "x-bland-signature": "bad-signature" },
+      headers: { "x-webhook-signature": "bad-signature" },
       body: TRANSFERRED_PAYLOAD
     };
     const res = makeRes();
