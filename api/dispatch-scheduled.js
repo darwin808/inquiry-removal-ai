@@ -28,14 +28,9 @@ const CLIENTS_TABLE = "tblmSXx3cL7g43Eyi";
 const PII_IDENTITY_TABLE = "tblRwLZR7uHDRb0LW";
 
 // ---------------------------------------------------------------------------
-// PII field extraction (mirrors schedule-call.js)
-// ---------------------------------------------------------------------------
-
-
-// ---------------------------------------------------------------------------
 // Call launcher — mirrors schedule-call.js launchCall
 // ---------------------------------------------------------------------------
-async function launchCall({ caseId, clientId, clientData, bureaus }) {
+async function launchCall({ caseId, clientId, clientData, bureaus, ghlContactId, inquiryRemoverUserId }) {
   const transfer = process.env.FUNDHUB_REP_NUMBER;
   let lastCallId = null;
 
@@ -48,6 +43,8 @@ async function launchCall({ caseId, clientId, clientData, bureaus }) {
     const requestData = buildExperianPacket(clientData, [], transfer);
     const metadata = buildCallMetadata(clientId, "EX", caseId);
     metadata.case_id = caseId;
+    metadata.ghl_contact_id = ghlContactId || null;
+    metadata.inquiry_remover_user_id = inquiryRemoverUserId || null;
 
     const callConfig = buildExperianCallConfig(requestData, { metadata });
     const call = await bland.createCall(callConfig);
@@ -154,7 +151,14 @@ module.exports = async function handler(req, res) {
         .filter(Boolean);
 
       // 5. Launch call
-      const callId = await launchCall({ caseId, clientId, clientData, bureaus });
+      const callId = await launchCall({
+        caseId,
+        clientId,
+        clientData,
+        bureaus,
+        ghlContactId: caseFields.ghl_contact_id,
+        inquiryRemoverUserId: caseFields.inquiry_remover_user_id
+      });
 
       results.push({ case_id: caseId, status: "dispatched", call_id: callId });
       dispatched++;

@@ -35,6 +35,9 @@
  * }
  */
 
+const bland = require("../src/lib/bland-client");
+const { EXPERIAN_ANALYSIS_QUESTIONS } = require("../src/agents/experian-prompt");
+
 const INQUIRY_REMOVAL_CASES_TABLE = "tblYOliwtT0RETm2S";
 
 // Outcomes that mean the call progressed far enough to hand off to a human
@@ -140,6 +143,15 @@ module.exports = async function handler(req, res) {
     }
   } else {
     console.log("[webhook] No ghl_contact_id in metadata, skipping GHL update");
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. Trigger post-call analysis (best-effort, non-blocking)
+  // -------------------------------------------------------------------------
+  if (call_id && status === "completed") {
+    triggerCallAnalysis(call_id, caseId).catch((err) => {
+      console.error(`[webhook] Post-call analysis failed for ${call_id}:`, err.message);
+    });
   }
 
   return res.status(200).json({
@@ -251,6 +263,35 @@ async function updateGhlContact(
     .join("\n");
 
   await ghl.addContactNote(contactId, noteLines);
+}
+
+// ---------------------------------------------------------------------------
+// Post-call analysis (async, best-effort)
+// ---------------------------------------------------------------------------
+
+async function triggerCallAnalysis(callId, caseId) {
+  try {
+    const analysis = await bland.analyzeCall(callId, EXPERIAN_ANALYSIS_QUESTIONS);
+    console.log(`[webhook] Call analysis for ${callId}:`, JSON.stringify(analysis).substring(0, 500));
+
+    // If we have a case ID, append analysis to remover_notes
+    if (caseId && process.env.AIRTABLE_API_KEY) {
+      const airtable = require("../src/lib/airtable-client");
+      const record = await airtable.getRecord(INQUIRY_REMOVAL_CASES_TABLE, caseId);
+      const existingNotes = record.fields.remover_notes || "";
+      const analysisText = Object.entries(analysis.answers || analysis || {})
+        .map(([q, a]) => `Q: ${q}\nA: ${a}`)
+        .join("\n\n");
+      if (analysisText) {
+        await airtable.updateRecord(INQUIRY_REMOVAL_CASES_TABLE, caseId, {
+          remover_notes: existingNotes + "\n\n--- AI Analysis ---\n" + analysisText
+        });
+      }
+    }
+  } catch (err) {
+    // Non-fatal — analysis is supplementary
+    console.error(`[webhook] analyzeCall failed for ${callId}:`, err.message);
+  }
 }
 
 // ---------------------------------------------------------------------------
