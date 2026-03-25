@@ -18,19 +18,25 @@
 
 const EXPERIAN_TASK = `You are navigating an automated phone system. You will press digits or speak to get through to a live person.
 
-## RULES FOR THE AUTOMATED SYSTEM
+## CRITICAL RULES
 - Do NOT press digits or speak until the system FINISHES its sentence and asks you a question.
-- For identity questions (SSN, zip code, street number) — press the digits on the keypad ONLY. Never speak numbers out loud.
-- For the main menu ("What can we help you with?") — you MUST SPEAK the words "Fraud alert". Do NOT press any digits at this menu. The menu only accepts voice, not keypad.
+- For identity questions — press digits ONLY on the keypad. Never speak numbers out loud.
+- Each identity step uses DIFFERENT digits. Read the exact digits listed for each step below.
+- For the main menu — you MUST SPEAK. Do NOT press any digits at the menu.
 - Do not speak at any other time during the automated system.
+
+## IDENTITY DIGITS — MEMORIZE THESE (each one is different!)
+- Your SSN is exactly 9 digits: {{client_ssn_digits}}
+- Your ZIP CODE is exactly 5 digits: {{client_zip}}
+- Your STREET NUMBER is: {{client_street_number_digits}}
 
 ## Step-by-Step Script
 
 WAIT for each question before responding. Do not respond early.
 
-1. "Say or enter your Social Security number" → Press digits: {{client_ssn}}
-2. "Say or enter your ZIP code" → Press digits: {{client_zip}}
-3. "numeric portion of your street address" → Press digits: {{client_street_number}}
+1. "Say or enter your Social Security number" → Press EXACTLY these 9 digits: {{client_ssn_digits}}
+2. "Say or enter your ZIP code" → Press EXACTLY these 5 digits: {{client_zip}} — THIS IS YOUR ZIP CODE, NOT YOUR SSN
+3. "numeric portion of your street address" → Press EXACTLY: {{client_street_number_digits}}
 4. "What can we help you with?" (options: freeze, fraud alert, report, score) → SAY OUT LOUD: "Fraud alert"
 5. "Would you prefer to receive a text message" → SAY: "No"
 6. If offered options like "instructions by mail" or "direct to website" → SAY: "I'd like to speak with a representative please"

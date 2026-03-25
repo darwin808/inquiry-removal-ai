@@ -8,11 +8,10 @@
  */
 
 const BLAND_API_BASE = "https://api.bland.ai/v1";
-const BLAND_API_KEY = process.env.BLAND_API_KEY;
 
 function authHeaders() {
   return {
-    Authorization: BLAND_API_KEY,
+    Authorization: process.env.BLAND_API_KEY,
     "Content-Type": "application/json"
   };
 }
@@ -73,6 +72,8 @@ async function createCall({
   if (dtmfSequence) body.precall_dtmf_sequence = dtmfSequence;
   if (webhookUrl) body.webhook = webhookUrl;
   if (metadata) body.metadata = metadata;
+
+  console.log(`[bland-client] createCall to=${phoneNumber} webhook=${webhookUrl || "none"} voice=${voice || "default"}`);
 
   return blandFetch("/calls", {
     method: "POST",

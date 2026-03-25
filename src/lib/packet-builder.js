@@ -63,6 +63,8 @@ function buildExperianPacket(clientData, inquiries, transferNumber) {
 
   const cleanSSN = clientData.ssn.replace(/\D/g, "");
   const ssnFormatted = `${cleanSSN.slice(0, 3)}-${cleanSSN.slice(3, 5)}-${cleanSSN.slice(5)}`;
+  const cleanZip = (clientData.address.zip || "").replace(/\D/g, "");
+  const streetNumber = extractStreetNumber(clientData.address.line1);
 
   const inquiryList = inquiries && inquiries.length > 0
     ? inquiries.map(inq => `- ${sanitize(inq.creditorName)} (${sanitize(inq.date, 10)})`).join("\n")
@@ -73,13 +75,15 @@ function buildExperianPacket(clientData, inquiries, transferNumber) {
     client_middle_name: clientData.middleName || "",
     client_last_name: clientData.lastName,
     client_ssn: ssnFormatted,
+    client_ssn_digits: cleanSSN,
     client_dob: clientData.dob || "",
-    client_zip: clientData.address.zip,
+    client_zip: cleanZip,
     client_address: clientData.address.line1 || "",
     client_city: clientData.address.city || "",
     client_state: clientData.address.state || "",
     client_phone: clientData.phone || "",
-    client_street_number: extractStreetNumber(clientData.address.line1),
+    client_street_number: streetNumber,
+    client_street_number_digits: streetNumber,
     inquiry_list: inquiryList,
     transfer_number: transferNumber
   };
