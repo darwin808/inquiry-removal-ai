@@ -89,7 +89,7 @@ OPTION B (if no transfer): Continue the conversation:
  */
 function buildExperianCallConfig(requestData, overrides = {}) {
   return {
-    phoneNumber: process.env.EXPERIAN_DISPUTE_NUMBER || "+18554146048",
+    phoneNumber: (process.env.EXPERIAN_DISPUTE_NUMBER || "+18554146048").replace(/\\n/g, "").trim(),
     task: EXPERIAN_TASK,
     requestData,
     transferNumber: requestData.transfer_number || process.env.FUNDHUB_REP_NUMBER,
