@@ -4,11 +4,15 @@
 jest.mock("../../src/lib/bland-client");
 jest.mock("../../src/lib/packet-builder");
 jest.mock("../../src/agents/experian-prompt");
+jest.mock("../../src/agents/equifax-prompt");
+jest.mock("../../src/agents/transunion-prompt");
 jest.mock("../../src/lib/auth");
 
 const bland = require("../../src/lib/bland-client");
-const { buildExperianPacket, buildCallMetadata } = require("../../src/lib/packet-builder");
+const { buildCallPacket, buildCallMetadata } = require("../../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../../src/agents/experian-prompt");
+const { buildEquifaxCallConfig } = require("../../src/agents/equifax-prompt");
+const { buildTransUnionCallConfig } = require("../../src/agents/transunion-prompt");
 const { requireAuth } = require("../../src/lib/auth");
 
 const handler = require("../../api/launch-call");
@@ -51,9 +55,11 @@ beforeEach(() => {
   requireAuth.mockReturnValue(true);
 
   // Default mock implementations
-  buildExperianPacket.mockReturnValue({ client_first_name: "Jane" });
+  buildCallPacket.mockReturnValue({ client_first_name: "Jane" });
   buildCallMetadata.mockReturnValue({ client_id: "recABC", bureau: "EX" });
   buildExperianCallConfig.mockReturnValue({ phoneNumber: "+18883973742", task: "..." });
+  buildEquifaxCallConfig.mockReturnValue({ phoneNumber: "+18665495097", task: "..." });
+  buildTransUnionCallConfig.mockReturnValue({ phoneNumber: "+18009168800", task: "..." });
   bland.createCall.mockResolvedValue({ call_id: "call_123", status: "queued" });
 });
 
@@ -71,7 +77,6 @@ describe("POST /api/launch-call", () => {
     const req = { ...BASE_REQ };
     const res = makeRes();
     await handler(req, res);
-    // requireAuth itself sent the response; handler just returns
     expect(bland.createCall).not.toHaveBeenCalled();
   });
 
@@ -101,7 +106,7 @@ describe("POST /api/launch-call", () => {
     expect(res._body.error).toContain("transferNumber");
   });
 
-  test("returns 200 with call info on successful launch", async () => {
+  test("returns 200 with call info on successful launch (default EX)", async () => {
     const req = { ...BASE_REQ };
     const res = makeRes();
     await handler(req, res);
@@ -110,18 +115,72 @@ describe("POST /api/launch-call", () => {
     expect(res._body.ok).toBe(true);
     expect(res._body.callId).toBe("call_123");
     expect(res._body.bureau).toBe("EX");
+    expect(buildExperianCallConfig).toHaveBeenCalled();
   });
 
-  test("calls buildExperianPacket with clientData, inquiries, and transferNumber", async () => {
+  test("calls buildCallPacket with clientData, inquiries, transferNumber, and bureau", async () => {
     const req = { ...BASE_REQ };
     const res = makeRes();
     await handler(req, res);
 
-    expect(buildExperianPacket).toHaveBeenCalledWith(
+    expect(buildCallPacket).toHaveBeenCalledWith(
       VALID_CLIENT_DATA,
       [],
-      "+15550009999"
+      "+15550009999",
+      "EX"
     );
+  });
+
+  test("routes to Equifax when bureau=EQ", async () => {
+    const req = {
+      ...BASE_REQ,
+      body: { ...BASE_REQ.body, bureau: "EQ" }
+    };
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body.bureau).toBe("EQ");
+    expect(buildEquifaxCallConfig).toHaveBeenCalled();
+    expect(buildExperianCallConfig).not.toHaveBeenCalled();
+  });
+
+  test("routes to TransUnion when bureau=TU", async () => {
+    const req = {
+      ...BASE_REQ,
+      body: { ...BASE_REQ.body, bureau: "TU" }
+    };
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body.bureau).toBe("TU");
+    expect(buildTransUnionCallConfig).toHaveBeenCalled();
+    expect(buildExperianCallConfig).not.toHaveBeenCalled();
+  });
+
+  test("accepts lowercase bureau param", async () => {
+    const req = {
+      ...BASE_REQ,
+      body: { ...BASE_REQ.body, bureau: "eq" }
+    };
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body.bureau).toBe("EQ");
+  });
+
+  test("returns 400 for invalid bureau", async () => {
+    const req = {
+      ...BASE_REQ,
+      body: { ...BASE_REQ.body, bureau: "XX" }
+    };
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._status).toBe(400);
+    expect(res._body.error).toContain("Invalid bureau");
   });
 
   test("returns 500 when bland.createCall throws", async () => {
@@ -135,8 +194,8 @@ describe("POST /api/launch-call", () => {
     expect(res._body.error).toBe("Internal server error");
   });
 
-  test("returns 500 when buildExperianPacket throws (e.g. missing SSN)", async () => {
-    buildExperianPacket.mockImplementation(() => {
+  test("returns 500 when buildCallPacket throws (e.g. missing SSN)", async () => {
+    buildCallPacket.mockImplementation(() => {
       throw new Error("Valid 9-digit SSN is required");
     });
     const req = { ...BASE_REQ };
@@ -156,10 +215,11 @@ describe("POST /api/launch-call", () => {
     const res = makeRes();
     await handler(req, res);
 
-    expect(buildExperianPacket).toHaveBeenCalledWith(
+    expect(buildCallPacket).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      "+15550008888"
+      "+15550008888",
+      "EX"
     );
     delete process.env.FUNDHUB_REP_NUMBER;
   });

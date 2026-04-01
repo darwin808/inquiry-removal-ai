@@ -58,7 +58,8 @@ async function createCall({
   waitForGreeting = true,
   dtmfSequence,
   webhookUrl,
-  metadata
+  metadata,
+  maxDuration
 }) {
   const body = {
     phone_number: phoneNumber,
@@ -66,11 +67,16 @@ async function createCall({
     wait_for_greeting: waitForGreeting
   };
 
+  if (maxDuration) body.max_duration = maxDuration;
+
   if (requestData) body.request_data = requestData;
   if (transferNumber) body.transfer_phone_number = transferNumber;
   if (voice) body.voice = voice;
   if (dtmfSequence) body.precall_dtmf_sequence = dtmfSequence;
   if (webhookUrl) body.webhook = webhookUrl;
+  // Block caller ID (*67 equivalent) — Bland AI supports this via from parameter
+  // Setting from to null/empty tells Bland to use anonymous caller ID
+  body.block_caller_id = true;
   if (metadata) body.metadata = metadata;
 
   console.log(`[bland-client] createCall to=${phoneNumber} webhook=${webhookUrl || "none"} voice=${voice || "default"}`);

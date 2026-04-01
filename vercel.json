@@ -32,6 +32,26 @@
       "dest": "/api/dispatch-scheduled.js"
     },
     {
+      "src": "^/api/setter-launch$",
+      "dest": "/api/setter-launch.js"
+    },
+    {
+      "src": "^/api/setter-webhook$",
+      "dest": "/api/setter-webhook.js"
+    },
+    {
+      "src": "^/api/setter-slots$",
+      "dest": "/api/setter-slots.js"
+    },
+    {
+      "src": "^/api/setter-book$",
+      "dest": "/api/setter-book.js"
+    },
+    {
+      "src": "^/api/test-call$",
+      "dest": "/api/test-call.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }

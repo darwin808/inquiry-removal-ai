@@ -3,10 +3,11 @@
 /**
  * POST /api/launch-call
  *
- * Launches an outbound Experian dispute call via Bland AI.
+ * Launches an outbound dispute call via Bland AI to any bureau.
  *
  * Request body:
  * {
+ *   "bureau": "EX" | "EQ" | "TU",   (default: "EX")
  *   "clientData": { firstName, middleName, lastName, ssn, dob, phone, address: { line1, city, state, zip } },
  *   "inquiries": [{ creditorName, date }],
  *   "transferNumber": "+1xxxxxxxxxx",
@@ -15,9 +16,17 @@
  */
 
 const bland = require("../src/lib/bland-client");
-const { buildExperianPacket, buildCallMetadata } = require("../src/lib/packet-builder");
+const { buildCallPacket, buildCallMetadata } = require("../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../src/agents/experian-prompt");
+const { buildEquifaxCallConfig } = require("../src/agents/equifax-prompt");
+const { buildTransUnionCallConfig } = require("../src/agents/transunion-prompt");
 const { requireAuth } = require("../src/lib/auth");
+
+const BUREAU_CONFIGS = {
+  EX: buildExperianCallConfig,
+  EQ: buildEquifaxCallConfig,
+  TU: buildTransUnionCallConfig
+};
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -30,7 +39,12 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: "BLAND_API_KEY not configured" });
   }
 
-  const { clientData, inquiries, transferNumber, clientId } = req.body || {};
+  const { clientData, inquiries, transferNumber, clientId, bureau: rawBureau } = req.body || {};
+  const bureau = (rawBureau || "EX").toUpperCase();
+
+  if (!BUREAU_CONFIGS[bureau]) {
+    return res.status(400).json({ error: `Invalid bureau: ${rawBureau}. Must be EX, EQ, or TU.` });
+  }
 
   if (!clientData) {
     return res.status(400).json({ error: "clientData is required" });
@@ -43,11 +57,12 @@ module.exports = async function handler(req, res) {
 
   try {
     // Build the call packet (dynamic variables for the agent)
-    const requestData = buildExperianPacket(clientData, inquiries || [], transfer);
-    const metadata = buildCallMetadata(clientId || "unknown", "EX");
+    const requestData = buildCallPacket(clientData, inquiries || [], transfer, bureau);
+    const metadata = buildCallMetadata(clientId || "unknown", bureau);
 
-    // Build Bland AI call config from prompt template
-    const callConfig = buildExperianCallConfig(requestData, { metadata });
+    // Build Bland AI call config from bureau-specific prompt template
+    const buildConfig = BUREAU_CONFIGS[bureau];
+    const callConfig = buildConfig(requestData, { metadata });
 
     // Launch the call via Bland AI
     const call = await bland.createCall(callConfig);
@@ -56,11 +71,11 @@ module.exports = async function handler(req, res) {
       ok: true,
       callId: call.call_id,
       status: call.status || "queued",
-      bureau: "EX",
+      bureau,
       metadata
     });
   } catch (err) {
-    console.error("Launch call failed:", err.message);
+    console.error(`Launch call failed (${bureau}):`, err.message);
     return res.status(500).json({
       ok: false,
       error: "Internal server error"

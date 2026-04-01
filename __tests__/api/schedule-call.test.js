@@ -4,12 +4,14 @@ jest.mock("../../src/lib/airtable-client");
 jest.mock("../../src/lib/bland-client");
 jest.mock("../../src/lib/packet-builder");
 jest.mock("../../src/agents/experian-prompt");
+jest.mock("../../src/agents/equifax-prompt");
+jest.mock("../../src/agents/transunion-prompt");
 jest.mock("../../src/lib/schedule-utils");
 jest.mock("../../src/lib/auth");
 
 const airtable = require("../../src/lib/airtable-client");
 const bland = require("../../src/lib/bland-client");
-const { buildExperianPacket, buildCallMetadata, extractClientData } = require("../../src/lib/packet-builder");
+const { buildCallPacket, buildCallMetadata, extractClientData } = require("../../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../../src/agents/experian-prompt");
 const { isBusinessHours, nextBusinessHourSlot } = require("../../src/lib/schedule-utils");
 const { requireAuth } = require("../../src/lib/auth");
@@ -85,7 +87,7 @@ beforeEach(() => {
     phone: "+15551234567",
     address: { line1: "123 Main St", city: "Miami", state: "FL", zip: "33101" }
   });
-  buildExperianPacket.mockReturnValue({ client_first_name: "John", transfer_number: "+15550009999" });
+  buildCallPacket.mockReturnValue({ client_first_name: "John", transfer_number: "+15550009999" });
   buildCallMetadata.mockReturnValue({ client_id: "recCLIENT1", bureau: "EX" });
   buildExperianCallConfig.mockReturnValue({ phoneNumber: "+18883973742", task: "..." });
   bland.createCall.mockResolvedValue({ call_id: "call_new_123", status: "queued" });

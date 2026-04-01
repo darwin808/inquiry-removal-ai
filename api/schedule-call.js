@@ -30,10 +30,21 @@
 
 const airtable = require("../src/lib/airtable-client");
 const bland = require("../src/lib/bland-client");
-const { buildExperianPacket, buildCallMetadata, extractClientData } = require("../src/lib/packet-builder");
+const { buildCallPacket, buildCallMetadata, extractClientData } = require("../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../src/agents/experian-prompt");
+const { buildEquifaxCallConfig } = require("../src/agents/equifax-prompt");
+const { buildTransUnionCallConfig } = require("../src/agents/transunion-prompt");
 const { isBusinessHours, nextBusinessHourSlot } = require("../src/lib/schedule-utils");
 const { requireAuth } = require("../src/lib/auth");
+
+// ---------------------------------------------------------------------------
+// Bureau config map
+// ---------------------------------------------------------------------------
+const BUREAU_CONFIGS = {
+  EX: buildExperianCallConfig,
+  EQ: buildEquifaxCallConfig,
+  TU: buildTransUnionCallConfig
+};
 
 // ---------------------------------------------------------------------------
 // Table IDs (FUNDHUB MATRIX base)
@@ -102,7 +113,11 @@ module.exports = async function handler(req, res) {
     const bureaus = (selected_bureaus_raw || "EX")
       .split(",")
       .map((b) => b.trim().toUpperCase())
-      .filter(Boolean);
+      .filter((b) => BUREAU_CONFIGS[b]);
+
+    if (bureaus.length === 0) {
+      return res.status(400).json({ error: "No valid bureaus specified" });
+    }
 
     // 5. Compute business-hour schedule
     const now = new Date();
@@ -159,23 +174,23 @@ async function launchCall({ caseId, clientId, clientData, bureaus, ghlContactId,
   let lastCallId = null;
 
   for (const bureau of bureaus) {
-    if (bureau !== "EX") {
-      // Only Experian is supported in MVP
-      console.log(`[schedule-call] Bureau ${bureau} not yet supported, skipping`);
+    const buildConfig = BUREAU_CONFIGS[bureau];
+    if (!buildConfig) {
+      console.log(`[schedule-call] Bureau ${bureau} not recognized, skipping`);
       continue;
     }
 
-    const requestData = buildExperianPacket(clientData, [], transfer);
-    const metadata = buildCallMetadata(clientId, "EX", caseId);
+    const requestData = buildCallPacket(clientData, [], transfer, bureau);
+    const metadata = buildCallMetadata(clientId, bureau, caseId);
     metadata.case_id = caseId;
     metadata.ghl_contact_id = ghlContactId || null;
     metadata.inquiry_remover_user_id = inquiryRemoverUserId || null;
 
-    const callConfig = buildExperianCallConfig(requestData, { metadata });
+    const callConfig = buildConfig(requestData, { metadata });
     const call = await bland.createCall(callConfig);
     lastCallId = call.call_id;
 
-    console.log(`[schedule-call] Bland call launched: call_id=${call.call_id} bureau=EX`);
+    console.log(`[schedule-call] Bland call launched: call_id=${call.call_id} bureau=${bureau}`);
 
     // Update case to Calling now that call is live
     await airtable.updateRecord(INQUIRY_REMOVAL_CASES_TABLE, caseId, {

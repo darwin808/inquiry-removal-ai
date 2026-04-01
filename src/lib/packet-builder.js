@@ -27,27 +27,32 @@ function extractStreetNumber(addressLine) {
 }
 
 /**
- * Build a call packet for an Experian dispute call.
+ * Convert a DOB string (MM/DD/YYYY or YYYY-MM-DD) to MMDDYYYY digits.
+ * e.g. "09/02/1995" → "09021995", "1995-09-02" → "09021995"
+ */
+function dobToDigits(dob) {
+  const s = String(dob || "").trim();
+  // MM/DD/YYYY format
+  const slashMatch = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) return slashMatch[1] + slashMatch[2] + slashMatch[3];
+  // YYYY-MM-DD format
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return isoMatch[2] + isoMatch[3] + isoMatch[1];
+  // Already digits
+  return s.replace(/\D/g, "");
+}
+
+/**
+ * Build a generic call packet for any bureau dispute call.
+ * All three bureaus need the same client identity variables.
  *
  * @param {Object} clientData - Client identity information
- * @param {string} clientData.firstName
- * @param {string} clientData.middleName
- * @param {string} clientData.lastName
- * @param {string} clientData.ssn - Full 9-digit SSN
- * @param {string} clientData.dob - Date of birth (MM/DD/YYYY)
- * @param {string} clientData.phone - Phone number
- * @param {Object} clientData.address
- * @param {string} clientData.address.line1
- * @param {string} clientData.address.city
- * @param {string} clientData.address.state
- * @param {string} clientData.address.zip
- * @param {Array} inquiries - Experian inquiries to dispute
- * @param {string} inquiries[].creditorName
- * @param {string} inquiries[].date
+ * @param {Array} inquiries - Bureau-specific inquiries to dispute
  * @param {string} transferNumber - FundHub rep phone number (E.164)
+ * @param {string} bureau - "EX", "EQ", or "TU"
  * @returns {Object} Bland AI request_data variables object
  */
-function buildExperianPacket(clientData, inquiries, transferNumber) {
+function buildCallPacket(clientData, inquiries, transferNumber, bureau) {
   if (!clientData.firstName || !clientData.lastName) {
     throw new Error("Client first and last name are required");
   }
@@ -65,10 +70,12 @@ function buildExperianPacket(clientData, inquiries, transferNumber) {
   const ssnFormatted = `${cleanSSN.slice(0, 3)}-${cleanSSN.slice(3, 5)}-${cleanSSN.slice(5)}`;
   const cleanZip = (clientData.address.zip || "").replace(/\D/g, "");
   const streetNumber = extractStreetNumber(clientData.address.line1);
+  const dobDigits = dobToDigits(clientData.dob);
 
+  const bureauName = { EX: "Experian", EQ: "Equifax", TU: "TransUnion" }[bureau] || bureau;
   const inquiryList = inquiries && inquiries.length > 0
     ? inquiries.map(inq => `- ${sanitize(inq.creditorName)} (${sanitize(inq.date, 10)})`).join("\n")
-    : "No specific inquiries listed — dispute all unauthorized inquiries on my Experian report.";
+    : `No specific inquiries listed — dispute all unauthorized inquiries on my ${bureauName} report.`;
 
   return {
     client_first_name: clientData.firstName,
@@ -77,6 +84,7 @@ function buildExperianPacket(clientData, inquiries, transferNumber) {
     client_ssn: ssnFormatted,
     client_ssn_digits: cleanSSN,
     client_dob: clientData.dob || "",
+    client_dob_digits: dobDigits,
     client_zip: cleanZip,
     client_address: clientData.address.line1 || "",
     client_city: clientData.address.city || "",
@@ -87,6 +95,14 @@ function buildExperianPacket(clientData, inquiries, transferNumber) {
     inquiry_list: inquiryList,
     transfer_number: transferNumber
   };
+}
+
+/**
+ * Build a call packet for an Experian dispute call.
+ * Backwards-compatible wrapper around buildCallPacket.
+ */
+function buildExperianPacket(clientData, inquiries, transferNumber) {
+  return buildCallPacket(clientData, inquiries, transferNumber, "EX");
 }
 
 /**
@@ -123,6 +139,7 @@ function extractClientData(piiFields, clientFields) {
 }
 
 module.exports = {
+  buildCallPacket,
   buildExperianPacket,
   buildCallMetadata,
   extractClientData

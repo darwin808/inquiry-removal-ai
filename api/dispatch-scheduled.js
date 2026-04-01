@@ -16,9 +16,20 @@
 
 const airtable = require("../src/lib/airtable-client");
 const bland = require("../src/lib/bland-client");
-const { buildExperianPacket, buildCallMetadata, extractClientData } = require("../src/lib/packet-builder");
+const { buildCallPacket, buildCallMetadata, extractClientData } = require("../src/lib/packet-builder");
 const { buildExperianCallConfig } = require("../src/agents/experian-prompt");
+const { buildEquifaxCallConfig } = require("../src/agents/equifax-prompt");
+const { buildTransUnionCallConfig } = require("../src/agents/transunion-prompt");
 const { isBusinessHours } = require("../src/lib/schedule-utils");
+
+// ---------------------------------------------------------------------------
+// Bureau config map
+// ---------------------------------------------------------------------------
+const BUREAU_CONFIGS = {
+  EX: buildExperianCallConfig,
+  EQ: buildEquifaxCallConfig,
+  TU: buildTransUnionCallConfig
+};
 
 // ---------------------------------------------------------------------------
 // Table IDs (FUNDHUB MATRIX base)
@@ -35,22 +46,23 @@ async function launchCall({ caseId, clientId, clientData, bureaus, ghlContactId,
   let lastCallId = null;
 
   for (const bureau of bureaus) {
-    if (bureau !== "EX") {
-      console.log(`[dispatch-scheduled] Bureau ${bureau} not yet supported, skipping`);
+    const buildConfig = BUREAU_CONFIGS[bureau];
+    if (!buildConfig) {
+      console.log(`[dispatch-scheduled] Bureau ${bureau} not recognized, skipping`);
       continue;
     }
 
-    const requestData = buildExperianPacket(clientData, [], transfer);
-    const metadata = buildCallMetadata(clientId, "EX", caseId);
+    const requestData = buildCallPacket(clientData, [], transfer, bureau);
+    const metadata = buildCallMetadata(clientId, bureau, caseId);
     metadata.case_id = caseId;
     metadata.ghl_contact_id = ghlContactId || null;
     metadata.inquiry_remover_user_id = inquiryRemoverUserId || null;
 
-    const callConfig = buildExperianCallConfig(requestData, { metadata });
+    const callConfig = buildConfig(requestData, { metadata });
     const call = await bland.createCall(callConfig);
     lastCallId = call.call_id;
 
-    console.log(`[dispatch-scheduled] Bland call launched: call_id=${call.call_id} case=${caseId} bureau=EX`);
+    console.log(`[dispatch-scheduled] Bland call launched: call_id=${call.call_id} case=${caseId} bureau=${bureau}`);
 
     await airtable.updateRecord(INQUIRY_REMOVAL_CASES_TABLE, caseId, {
       case_status: "Calling",
@@ -148,7 +160,11 @@ module.exports = async function handler(req, res) {
       const bureaus = (caseFields.selected_bureaus || "EX")
         .split(",")
         .map((b) => b.trim().toUpperCase())
-        .filter(Boolean);
+        .filter((b) => BUREAU_CONFIGS[b]);
+
+      if (bureaus.length === 0) {
+        throw new Error("No valid bureaus in case record");
+      }
 
       // 5. Launch call
       const callId = await launchCall({
