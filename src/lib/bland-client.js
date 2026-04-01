@@ -74,9 +74,9 @@ async function createCall({
   if (voice) body.voice = voice;
   if (dtmfSequence) body.precall_dtmf_sequence = dtmfSequence;
   if (webhookUrl) body.webhook = webhookUrl;
-  // Block caller ID (*67 equivalent) — Bland AI supports this via from parameter
-  // Setting from to null/empty tells Bland to use anonymous caller ID
-  body.block_caller_id = true;
+  // TODO: Caller ID blocking (*67) — block_caller_id is NOT a real Bland AI parameter.
+  // Chris needs to contact Bland AI support to enable anonymous outbound at the account level,
+  // or use the `from` parameter with a Twilio number that has caller ID blocking enabled.
   if (metadata) body.metadata = metadata;
 
   console.log(`[bland-client] createCall to=${phoneNumber} webhook=${webhookUrl || "none"} voice=${voice || "default"}`);

@@ -95,7 +95,7 @@ function buildExperianCallConfig(requestData, overrides = {}) {
     transferNumber: requestData.transfer_number || process.env.FUNDHUB_REP_NUMBER,
     voice: process.env.BLAND_VOICE || "mason",
     waitForGreeting: true,
-    maxDuration: 45,  // SOP: up to 30 min hold for fraud dept + IVR time + general rep hold
+    maxDuration: 60,  // SOP: up to 30 min hold for fraud dept + IVR time + general rep hold
     webhookUrl: process.env.WEBHOOK_BASE_URL
       ? `${process.env.WEBHOOK_BASE_URL}/api/call-webhook`
       : undefined,

@@ -125,7 +125,7 @@ function extractClientData(piiFields, clientFields) {
   return {
     firstName: piiFields.owner_first_name || "",
     lastName: piiFields.owner_last_name || "",
-    middleName: "",
+    middleName: piiFields.owner_middle_name || "",
     ssn: piiFields.ssn_full || "",
     dob: piiFields.dob || "",
     phone: piiFields.phone || clientFields.phone || "",
