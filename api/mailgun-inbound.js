@@ -101,10 +101,9 @@ module.exports = async function handler(req, res) {
       const fields = {
         "Id": contactId,
         "from": from,
-        "Subject": { name: subject.substring(0, 100) || "No Subject" },
-        "Body Preview": body_preview,
+        "Body Preview": `[${subject}]\n\n${body_preview}`,
         "Timestamp": timestamp,
-        "Type": { name: event_type },
+        "Type": event_type,
         "lender_name_guess": lender_name_guess || undefined,
         "message_hash": message_hash,
         "raw_payload_json": JSON.stringify({
