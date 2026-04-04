@@ -118,8 +118,7 @@ module.exports = async function handler(req, res) {
       if (detected_amount) fields["Amount"] = detected_amount;
       // Remove undefined values
       Object.keys(fields).forEach(k => fields[k] === undefined && delete fields[k]);
-      const record = await createRecord(BANK_INBOX_TABLE, fields
-      });
+      const record = await createRecord(BANK_INBOX_TABLE, fields);
       recordId = record.id;
       console.log("[mailgun-inbound] Created BANK_INBOX record:", recordId, event_type);
     } catch (err) {
