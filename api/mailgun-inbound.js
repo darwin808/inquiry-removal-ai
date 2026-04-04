@@ -98,23 +98,27 @@ module.exports = async function handler(req, res) {
     // Step 6: Write BANK_INBOX record to Airtable
     let recordId = null;
     try {
-      const record = await createRecord(BANK_INBOX_TABLE, {
-        contact_id: contactId,
-        from: from,
-        subject: subject,
-        body_preview: body_preview,
-        timestamp: timestamp,
-        event_type: { name: event_type },
-        detected_amount: detected_amount || undefined,
-        lender_name_guess: lender_name_guess || undefined,
-        message_hash: message_hash,
-        raw_payload_json: JSON.stringify({
+      const fields = {
+        "Id": contactId,
+        "from": from,
+        "Subject": { name: subject.substring(0, 100) || "No Subject" },
+        "Body Preview": body_preview,
+        "Timestamp": timestamp,
+        "Type": { name: event_type },
+        "lender_name_guess": lender_name_guess || undefined,
+        "message_hash": message_hash,
+        "raw_payload_json": JSON.stringify({
           sender: from,
           recipient,
           subject,
           body_preview: body_preview.substring(0, 200),
           classification: { event_type, confidence, matched_rule }
         })
+      };
+      if (detected_amount) fields["Amount"] = detected_amount;
+      // Remove undefined values
+      Object.keys(fields).forEach(k => fields[k] === undefined && delete fields[k]);
+      const record = await createRecord(BANK_INBOX_TABLE, fields
       });
       recordId = record.id;
       console.log("[mailgun-inbound] Created BANK_INBOX record:", recordId, event_type);
