@@ -78,4 +78,18 @@ async function listRecords(tableId, { filterByFormula, maxRecords, fields } = {}
   return airtableFetch(`/${baseId}/${tableId}${qs ? `?${qs}` : ""}`);
 }
 
-module.exports = { getRecord, updateRecord, listRecords };
+/**
+ * Create a new record in a table.
+ *
+ * @param {string} tableId - Table name or ID
+ * @param {Object} fields - Field values to set
+ */
+async function createRecord(tableId, fields) {
+  const { baseId } = getConfig();
+  return airtableFetch(`/${baseId}/${tableId}`, {
+    method: "POST",
+    body: JSON.stringify({ fields, typecast: true })
+  });
+}
+
+module.exports = { getRecord, updateRecord, listRecords, createRecord };

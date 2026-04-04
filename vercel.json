@@ -52,6 +52,10 @@
       "dest": "/api/test-call.js"
     },
     {
+      "src": "^/api/mailgun-inbound$",
+      "dest": "/api/mailgun-inbound.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
