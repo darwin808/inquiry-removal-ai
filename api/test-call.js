@@ -35,6 +35,14 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "POST only" });
   }
 
+  const secret = process.env.API_SECRET;
+  if (secret) {
+    const provided = req.headers["x-api-secret"] || req.headers["authorization"]?.replace("Bearer ", "") || "";
+    if (provided !== secret) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+  }
+
   const { bureau, phone } = req.body || {};
 
   // Validate inputs

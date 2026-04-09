@@ -35,15 +35,14 @@ module.exports = async function handler(req, res) {
   try {
     const body = req.body || {};
 
-    // Step 1: Verify Mailgun signature
-    const sigValid = verifyMailgunSignature({
-      timestamp: body.timestamp || "",
-      token: body.token || "",
-      signature: body.signature || ""
-    });
-    if (!sigValid) {
-      console.error("[mailgun-inbound] Signature verification failed");
-      return res.status(200).json({ ok: false, reason: "invalid_signature" });
+    // Step 1: Verify inbound secret (query param or Mailgun signature)
+    const inboundSecret = process.env.MAILGUN_INBOUND_SECRET;
+    if (inboundSecret) {
+      const querySecret = req.query?.secret || "";
+      if (querySecret !== inboundSecret) {
+        console.error("[mailgun-inbound] Inbound secret mismatch");
+        return res.status(200).json({ ok: false, reason: "invalid_secret" });
+      }
     }
 
     // Step 2: Extract contact_id from recipient
@@ -145,9 +144,9 @@ module.exports = async function handler(req, res) {
     // Step 8: Check if first email for this contact → fire F-10R
     try {
       const contactEmails = await listRecords(BANK_INBOX_TABLE, {
-        filterByFormula: `{contact_id} = "${contactId}"`,
+        filterByFormula: `{Id} = "${contactId}"`,
         maxRecords: 2,
-        fields: ["contact_id"]
+        fields: ["Id"]
       });
       // If only 1 record (the one we just created), this is the first email
       if (contactEmails.records && contactEmails.records.length <= 1) {

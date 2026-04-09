@@ -157,7 +157,7 @@ module.exports = async function handler(req, res) {
       }
 
       // 4. Parse bureaus from case fields (default EX)
-      const bureaus = (caseFields.selected_bureaus || "EX")
+      const bureaus = (caseFields.selected_bureaus_raw || "EX")
         .split(",")
         .map((b) => b.trim().toUpperCase())
         .filter((b) => BUREAU_CONFIGS[b]);
