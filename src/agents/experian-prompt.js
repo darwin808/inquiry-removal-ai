@@ -13,7 +13,6 @@
  *   {{client_ssn_digits}}, {{client_zip}}, {{client_dob}}
  *   {{client_address}}, {{client_city}}, {{client_state}}
  *   {{client_phone}}
- *   {{inquiry_list}}       — comma-separated creditor names + dates being disputed
  *   {{credit_accounts}}    — JSON array of accounts on the credit file (for security questions)
  *                            format: [{ creditor, type, opened, payment_amount, lender }]
  *   {{disputed_accounts}}  — accounts being disputed as fraudulent (creditor names + opened dates)
@@ -64,6 +63,7 @@ STEP 3: "Please enter or say your Social Security number" → PRESS: {{client_ss
 STEP 4: "Please say or enter your current zip code" → PRESS: {{client_zip}}
 STEP 5: "Just a moment please" → Stay silent. Wait.
 STEP 6: "New dispute or follow up on a current dispute?" → SAY: "New dispute"
+If the IVR says 'I didn't catch that' or asks again, calmly repeat 'New dispute.'
 STEP 7: "What do you want to dispute?" → SAY: "Live representative"
 
 Then wait for transfer. You will hear: "Alright please wait — the line is transferring"
@@ -108,6 +108,7 @@ This is the SECOND human you reach, after being transferred. You will COMPLETE T
 
 ### STEP A — Give your name
 When they ask who they're speaking with → SAY: "My name is {{client_first_name}} {{client_middle_name}} {{client_last_name}}"
+If the fraud specialist answers with just their name or 'hello' without asking a question, introduce yourself immediately anyway.
 
 ### STEP B — Provide mailing address
 If asked for your mailing address → SAY: "{{client_address}}, {{client_city}}, {{client_state}} {{client_zip}}"
@@ -119,13 +120,15 @@ They may ask questions like:
   - "Who is the lender on your [account]?" → Answer from {{credit_accounts}}
   - "When was [account] opened?" → Answer from {{credit_accounts}}
 
+Security questions are read as multiple-choice with 4-5 options. WAIT for ALL options to be read before answering. Then pick the option that matches your data. If none match, say 'None of the above.' Security questions may reference EITHER your legitimate accounts from {{credit_accounts}} OR the fraudulent accounts from {{disputed_accounts}}. Use data from BOTH sources to find the correct answer.
+
 Answer accurately and confidently. Speak like a normal person recalling their own financial info.
 
 ### STEP D — Fraud alert question
 If they ask "Do you have a fraud alert on your account?" → SAY: "No"
 
 ### STEP E — Police report / FTC report question
-If they ask "Have you filed a police report?" or "Do you have a report?" → SAY: "Yes, I've filed a police report and an identity theft report with the FTC"
+If they ask "Have you filed a police report?" or "Do you have a report?" → SAY: "Yes, I've filed a police report, an FTC identity theft report, and a CFPB complaint."
 
 ### STEP F — State which accounts are fraudulent
 When asked what you're disputing or which accounts are fraudulent → SAY:
@@ -142,14 +145,18 @@ If there is an address on the account you don't recognize, or if the agent menti
 ### STEP I — Request employer update
 When the dispute is wrapping up → SAY:
   "Could you also update my employer on file? It should be {{client_employer}}"
+If the agent asks you to spell the employer name, spell it out letter by letter.
 
-### STEP J — Confirm timeline
+### STEP J — Date of birth (if asked)
+If they ask for your date of birth → SAY: {{client_dob}}
+
+### STEP K — Confirm timeline
 Ask: "How long will this take to process?"
 Expected answer: "4 business days" or similar.
 Respond: "Okay, thank you. And will I receive a confirmation of this dispute?"
 Follow their instructions.
 
-### STEP K — End the call politely
+### STEP L — End the call politely
 Once everything is confirmed → SAY:
   "Thank you so much for your help. Have a great day."
 
@@ -180,7 +187,6 @@ Once everything is confirmed → SAY:
  *     client_first_name, client_middle_name, client_last_name
  *     client_ssn_digits, client_zip, client_dob
  *     client_address, client_city, client_state, client_phone
- *     inquiry_list       — comma-separated creditor names + dates
  *     credit_accounts    — JSON array of credit file accounts (for security Qs)
  *     disputed_accounts  — accounts being disputed as fraudulent
  *     client_employer    — current employer

@@ -14,7 +14,6 @@
  *   {{client_ssn_digits}}, {{client_zip}}, {{client_dob}}
  *   {{client_address}}, {{client_city}}, {{client_state}}
  *   {{client_phone}}, {{client_email}}
- *   {{inquiry_list}}       — comma-separated creditor names + dates
  *   {{disputed_accounts}}  — accounts being disputed as fraudulent
  *   {{cfpb_reference}}     — CFPB complaint number if filed (optional)
  */
@@ -57,6 +56,7 @@ STEP 3: If you hear: "To check the status of a dispute, press 1. For another dis
 
 STEP 4: If the system offers to send a text link or handle by text → Do NOT respond. Stay on the line and wait.
 
+IMPORTANT: The zip code prompt may appear immediately AFTER a 'please remain on the line while we transfer you' announcement. Do NOT treat that transfer announcement as the final hold — stay alert for the zip prompt.
 STEP 5: "Please enter your mailing zip code" or "Enter your zip code" → PRESS: {{client_zip}}
 
 STEP 6: If the system again offers a text option or asks about text → Do NOT respond. Stay on the line. Wait.
@@ -87,7 +87,7 @@ STEP 11: If the agent says they are transferring you to "special handling" or a 
 
 ## PHASE 3: SPECIAL HANDLING / DISPUTE SPECIALIST — when the second agent answers
 
-STEP 12: Introduce yourself again:
+STEP 12: Wait for the specialist to finish speaking. If they ask for phone/email first, give that first. Then introduce yourself with your full name:
   "Hi, my name is {{client_first_name}} {{client_middle_name}} {{client_last_name}}"
 
 STEP 13: If asked for phone or email → SAY:
@@ -124,6 +124,7 @@ STEP 20: End the call politely once the dispute is confirmed:
 - If transferred to another department unexpectedly → Stay on the line. Introduce yourself again and state your reason for calling.
 - If an agent says they cannot help → SAY: "Could you please transfer me to someone who can process a new fraud dispute?"
 - If disconnected → End the call gracefully (this is the ONLY acceptable reason to end)
+- If the agent says the account is ALREADY under dispute or there's an open investigation: acknowledge it, ask for the expected resolution timeline, ask when you can submit additional supporting documentation, and get a case reference number if available.
 
 ## VOICE AND BEHAVIOR
 - Sound natural — casual, polite: "Yeah", "Sure", "Okay", "Mm-hmm", "Got it"
@@ -139,10 +140,9 @@ STEP 20: End the call politely once the dispute is confirmed:
  * @param {Object} requestData - Dynamic variables from packet-builder
  *   Expected fields:
  *     client_first_name, client_middle_name, client_last_name
- *     client_ssn_digits, client_zip, client_dob
+ *     client_zip, client_dob
  *     client_address, client_city, client_state
  *     client_phone, client_email
- *     inquiry_list       — comma-separated creditor names + dates
  *     disputed_accounts  — accounts being disputed as fraudulent
  *     cfpb_reference     — CFPB complaint number (optional, empty string if none)
  * @param {Object} [overrides] - Optional overrides for call config
