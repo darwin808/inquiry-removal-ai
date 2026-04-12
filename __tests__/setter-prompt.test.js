@@ -4,14 +4,14 @@ const { buildSetterCallConfig, SETTER_TASK, SETTER_ANALYSIS_QUESTIONS } = requir
 
 // ---- helpers ----
 const BASE_REQUEST_DATA = {
-  lead_first_name: "John",
-  lead_last_name: "Doe",
-  lead_phone: "+15551234567",
-  rep_name: "Chris",
-  company_name: "FundHub",
-  contact_id: "ghl_1",
-  calendar_id: "cal_abc",
-  transfer_number: "+15559990000"
+  phone_number: "+15551234567",
+  ghl_contact_id: "ghl_1",
+  first_name: "John",
+  appointment_time: "Thursday 2pm",
+  analyzer_recommendation: "funding",
+  prequal_amount: "85000",
+  primary_fico: "720",
+  closer_name: "Chris"
 };
 
 beforeEach(() => {
@@ -25,9 +25,9 @@ beforeEach(() => {
 describe("buildSetterCallConfig", () => {
   // ---- Config structure ----
 
-  test("returns object with phoneNumber from requestData", () => {
+  test("returns object with phone_number from requestData", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.phoneNumber).toBe("+15551234567");
+    expect(config.phone_number).toBe("+15551234567");
   });
 
   test("returns object with task set to SETTER_TASK", () => {
@@ -35,97 +35,54 @@ describe("buildSetterCallConfig", () => {
     expect(config.task).toBe(SETTER_TASK);
   });
 
-  test("returns object with requestData passed through", () => {
+  test("returns object with request_data passed through", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.requestData).toBe(BASE_REQUEST_DATA);
+    expect(config.request_data).toBeDefined();
+    expect(config.request_data.ghl_contact_id).toBe("ghl_1");
+    expect(config.request_data.first_name).toBe("John");
   });
 
-  test("sets waitForGreeting to true", () => {
+  test("sets wait_for_greeting to true", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.waitForGreeting).toBe(true);
+    expect(config.wait_for_greeting).toBe(true);
   });
 
-  test("sets default voice to 'mason' when BLAND_VOICE env is not set", () => {
+  test("sets default voice to 'nat' when BLAND_VOICE env is not set", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.voice).toBe("mason");
+    expect(config.voice).toBe("nat");
   });
 
-  test("uses BLAND_VOICE env when set", () => {
+  test("voice remains 'nat' regardless of BLAND_VOICE env (voice is hardcoded in setter prompt)", () => {
     process.env.BLAND_VOICE = "david";
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.voice).toBe("david");
+    // setter-prompt.js hardcodes voice to "nat"; BLAND_VOICE env is not read here
+    expect(config.voice).toBe("nat");
   });
 
   // ---- Webhook URL ----
 
-  test("sets webhookUrl when WEBHOOK_BASE_URL env is set", () => {
+  test("sets webhook when WEBHOOK_BASE_URL env is set", () => {
     process.env.WEBHOOK_BASE_URL = "https://inquiry-removal.vercel.app";
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.webhookUrl).toBe("https://inquiry-removal.vercel.app/api/setter-webhook");
+    expect(config.webhook).toBe("https://inquiry-removal.vercel.app/api/setter-webhook");
   });
 
-  test("webhookUrl is undefined when WEBHOOK_BASE_URL env is not set", () => {
+  test("webhook is undefined when WEBHOOK_BASE_URL env is not set", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.webhookUrl).toBeUndefined();
+    expect(config.webhook).toBeUndefined();
   });
 
-  // ---- Tools injection ----
+  // ---- Metadata ----
 
-  test("does not include tools when tool IDs are not set", () => {
+  test("includes metadata with ghl_contact_id", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.tools).toBeUndefined();
+    expect(config.metadata).toBeDefined();
+    expect(config.metadata.ghl_contact_id).toBe("ghl_1");
   });
 
-  test("includes slots tool when BLAND_TOOL_SLOTS_ID is set", () => {
-    process.env.BLAND_TOOL_SLOTS_ID = "tool_slots_1";
-    const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.tools).toContain("tool_slots_1");
-  });
-
-  test("includes book tool when BLAND_TOOL_BOOK_ID is set", () => {
-    process.env.BLAND_TOOL_BOOK_ID = "tool_book_1";
-    const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.tools).toContain("tool_book_1");
-  });
-
-  test("includes both tools when both IDs are set", () => {
-    process.env.BLAND_TOOL_SLOTS_ID = "tool_slots_1";
-    process.env.BLAND_TOOL_BOOK_ID = "tool_book_1";
-    const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.tools).toEqual(["tool_slots_1", "tool_book_1"]);
-  });
-
-  // ---- Transfer number ----
-
-  test("sets transferNumber from requestData.transfer_number", () => {
-    const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.transferNumber).toBe("+15559990000");
-  });
-
-  test("falls back to FUNDHUB_REP_NUMBER env when transfer_number not in requestData", () => {
-    process.env.FUNDHUB_REP_NUMBER = "+15558880000";
-    const data = { ...BASE_REQUEST_DATA, transfer_number: "" };
-    const config = buildSetterCallConfig(data);
-    expect(config.transferNumber).toBe("+15558880000");
-  });
-
-  test("does not set transferNumber when neither source is available", () => {
-    const data = { ...BASE_REQUEST_DATA, transfer_number: "" };
-    const config = buildSetterCallConfig(data);
-    expect(config.transferNumber).toBeUndefined();
-  });
-
-  // ---- Metadata overrides ----
-
-  test("applies metadata from overrides", () => {
-    const meta = { contact_id: "ghl_1", call_type: "setter" };
-    const config = buildSetterCallConfig(BASE_REQUEST_DATA, { metadata: meta });
-    expect(config.metadata).toEqual(meta);
-  });
-
-  test("defaults metadata to empty object when no overrides", () => {
-    const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.metadata).toEqual({});
+  test("applies overrides to config", () => {
+    const config = buildSetterCallConfig(BASE_REQUEST_DATA, { metadata: { ghl_contact_id: "ghl_1", call_type: "setter" } });
+    expect(config.metadata).toEqual({ ghl_contact_id: "ghl_1", call_type: "setter" });
   });
 
   // ---- Overrides spread ----
@@ -133,6 +90,12 @@ describe("buildSetterCallConfig", () => {
   test("allows overrides to add extra fields", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA, { customField: "test" });
     expect(config.customField).toBe("test");
+  });
+
+  test("defaults metadata to object with contact data when no overrides", () => {
+    const config = buildSetterCallConfig(BASE_REQUEST_DATA);
+    expect(typeof config.metadata).toBe("object");
+    expect(config.metadata).not.toBeNull();
   });
 });
 
@@ -142,25 +105,26 @@ describe("SETTER_TASK", () => {
     expect(SETTER_TASK.length).toBeGreaterThan(100);
   });
 
-  test("contains placeholder variables for company_name and lead_first_name", () => {
-    expect(SETTER_TASK).toContain("{{company_name}}");
-    expect(SETTER_TASK).toContain("{{lead_first_name}}");
+  test("contains placeholder variables for first_name and prequal_amount", () => {
+    expect(SETTER_TASK).toContain("{{first_name}}");
+    expect(SETTER_TASK).toContain("{{prequal_amount}}");
   });
 
-  test("includes identity as Alex", () => {
-    expect(SETTER_TASK).toContain("Alex");
+  test("includes identity as Josh", () => {
+    expect(SETTER_TASK).toContain("Josh");
   });
 
   test("includes voicemail script", () => {
     expect(SETTER_TASK).toContain("VOICEMAIL");
   });
 
-  test("includes objection handling instructions", () => {
-    expect(SETTER_TASK).toContain("OBJECTION HANDLE");
+  test("includes guardrails section", () => {
+    expect(SETTER_TASK).toContain("GUARDRAILS");
   });
 
-  test("includes behavior rules", () => {
-    expect(SETTER_TASK).toContain("BEHAVIOR RULES");
+  test("includes call flow or rules section", () => {
+    const hasRules = SETTER_TASK.includes("RULES") || SETTER_TASK.includes("CALL FLOW");
+    expect(hasRules).toBe(true);
   });
 });
 

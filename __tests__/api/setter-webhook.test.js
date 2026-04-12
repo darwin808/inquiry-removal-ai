@@ -23,14 +23,14 @@ function makeRes() {
   return res;
 }
 
-// Minimal valid webhook payload — booked (transferred)
+// Minimal valid webhook payload — confirmed (transferred)
 const BOOKED_PAYLOAD = {
   call_id: "call_s1",
   status: "completed",
   completed: true,
   call_length: 120,
   transferred_to: "+15550001234",
-  metadata: { contact_id: "ghl_contact_1" },
+  metadata: { ghl_contact_id: "ghl_contact_1" },
   transcripts: [],
   summary: "Lead booked an appointment"
 };
@@ -40,14 +40,14 @@ const VOICEMAIL_PAYLOAD = {
   call_id: "call_s2",
   status: "completed",
   answered_by: "voicemail",
-  metadata: { contact_id: "ghl_contact_2" }
+  metadata: { ghl_contact_id: "ghl_contact_2" }
 };
 
 // No answer payload
 const NO_ANSWER_PAYLOAD = {
   call_id: "call_s3",
   status: "no-answer",
-  metadata: { contact_id: "ghl_contact_3" }
+  metadata: { ghl_contact_id: "ghl_contact_3" }
 };
 
 // Failed payload
@@ -65,7 +65,7 @@ const NOT_INTERESTED_PAYLOAD = {
   completed: true,
   call_length: 90,
   summary: "The lead said they are not interested in credit repair.",
-  metadata: { contact_id: "ghl_contact_5" }
+  metadata: { ghl_contact_id: "ghl_contact_5" }
 };
 
 // Long call with "callback" summary
@@ -75,16 +75,16 @@ const CALLBACK_PAYLOAD = {
   completed: true,
   call_length: 80,
   summary: "Lead asked us to call back later this week.",
-  metadata: { contact_id: "ghl_contact_6" }
+  metadata: { ghl_contact_id: "ghl_contact_6" }
 };
 
-// Short completed call (>10s, no transfer)
+// Short completed call (<15s, no transfer) — triggers no_answer threshold
 const SHORT_CALL_PAYLOAD = {
   call_id: "call_s7",
   status: "completed",
   completed: true,
-  call_length: 20,
-  metadata: { contact_id: "ghl_contact_7" }
+  call_length: 12,
+  metadata: { ghl_contact_id: "ghl_contact_7" }
 };
 
 // Very short completed call (<=10s)
@@ -133,64 +133,65 @@ describe("POST /api/setter-webhook", () => {
     expect(res._status).toBe(400);
   });
 
-  // ---- Disposition classification ----
+  // ---- Outcome classification ----
 
-  test("maps transferred_to → disposition='booked'", async () => {
+  test("maps transferred_to → outcome='confirmed'", async () => {
     const req = { method: "POST", headers: {}, body: BOOKED_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
 
     expect(res._status).toBe(200);
     expect(res._body.ok).toBe(true);
-    expect(res._body.disposition).toBe("booked");
+    expect(res._body.outcome).toBe("confirmed");
   });
 
-  test("maps answered_by='voicemail' → disposition='voicemail'", async () => {
+  test("maps answered_by='voicemail' → outcome='voicemail'", async () => {
     const req = { method: "POST", headers: {}, body: VOICEMAIL_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("voicemail");
+    expect(res._body.outcome).toBe("voicemail");
   });
 
-  test("maps status='no-answer' → disposition='no_answer'", async () => {
+  test("maps status='no-answer' → outcome='no_answer'", async () => {
     const req = { method: "POST", headers: {}, body: NO_ANSWER_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("no_answer");
+    expect(res._body.outcome).toBe("no_answer");
   });
 
-  test("maps status='busy' → disposition='no_answer'", async () => {
+  test("maps status='busy' → outcome='no_answer'", async () => {
     const req = {
       method: "POST", headers: {},
       body: { call_id: "cx", status: "busy", metadata: {} }
     };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("no_answer");
+    expect(res._body.outcome).toBe("no_answer");
   });
 
-  test("maps status='failed' → disposition='no_answer'", async () => {
+  test("maps status='failed' → outcome='failed'", async () => {
     const req = { method: "POST", headers: {}, body: FAILED_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("no_answer");
+    expect(res._body.outcome).toBe("failed");
   });
 
-  test("maps long completed call with 'not interested' summary → disposition='not_interested'", async () => {
+  test("maps long completed call with 'not interested' summary → outcome='confirmed' (default for answered calls)", async () => {
     const req = { method: "POST", headers: {}, body: NOT_INTERESTED_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("not_interested");
+    // summary has no reschedule/confirm signals → defaults to confirmed
+    expect(res._body.outcome).toBe("confirmed");
   });
 
-  test("maps long completed call with 'callback' summary → disposition='interested_callback'", async () => {
+  test("maps long completed call with 'callback' summary → outcome='reschedule'", async () => {
     const req = { method: "POST", headers: {}, body: CALLBACK_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("interested_callback");
+    expect(res._body.outcome).toBe("reschedule");
   });
 
-  test("maps long completed call with 'appointment' summary → disposition='booked'", async () => {
+  test("maps long completed call with 'appointment' summary → outcome='confirmed'", async () => {
     const req = {
       method: "POST", headers: {},
       body: {
@@ -201,10 +202,10 @@ describe("POST /api/setter-webhook", () => {
     };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("booked");
+    expect(res._body.outcome).toBe("confirmed");
   });
 
-  test("maps long completed call with generic summary → disposition='interested_callback'", async () => {
+  test("maps long completed call with generic summary → outcome='confirmed' (default)", async () => {
     const req = {
       method: "POST", headers: {},
       body: {
@@ -215,26 +216,26 @@ describe("POST /api/setter-webhook", () => {
     };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("interested_callback");
+    expect(res._body.outcome).toBe("confirmed");
   });
 
-  test("maps short completed call (>10s, no transfer) → disposition='not_interested'", async () => {
+  test("maps short completed call (<15s, no transfer) → outcome='no_answer'", async () => {
     const req = { method: "POST", headers: {}, body: SHORT_CALL_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("not_interested");
+    expect(res._body.outcome).toBe("no_answer");
   });
 
-  test("maps very short completed call (<=10s) → disposition='no_answer'", async () => {
+  test("maps very short completed call (<=10s) → outcome='no_answer'", async () => {
     const req = { method: "POST", headers: {}, body: VERY_SHORT_CALL_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
-    expect(res._body.disposition).toBe("no_answer");
+    expect(res._body.outcome).toBe("no_answer");
   });
 
   // ---- GHL updates ----
 
-  test("calls GHL update when contact_id present and GHL configured", async () => {
+  test("calls GHL update when ghl_contact_id present and GHL configured", async () => {
     ghl.isConfigured.mockReturnValue(true);
     const req = { method: "POST", headers: {}, body: BOOKED_PAYLOAD };
     const res = makeRes();
@@ -243,8 +244,8 @@ describe("POST /api/setter-webhook", () => {
     expect(ghl.updateContactCustomFields).toHaveBeenCalledWith(
       "ghl_contact_1",
       expect.objectContaining({
-        setter_call_disposition: "booked",
-        setter_call_status: "Appointment Set"
+        cf_call_confirmed: "true",
+        cf_last_progress_action: "ai_call_confirmed"
       })
     );
     expect(ghl.addContactNote).toHaveBeenCalledWith(
@@ -253,39 +254,35 @@ describe("POST /api/setter-webhook", () => {
     );
   });
 
-  test("sets setter_call_status to 'Follow Up' for non-booked dispositions", async () => {
+  test("does not write custom fields for voicemail outcome (tag-only)", async () => {
     ghl.isConfigured.mockReturnValue(true);
     const req = { method: "POST", headers: {}, body: VOICEMAIL_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
 
-    expect(ghl.updateContactCustomFields).toHaveBeenCalledWith(
-      "ghl_contact_2",
-      expect.objectContaining({
-        setter_call_status: "Follow Up"
-      })
-    );
+    // voicemail is tag-only — updateContactCustomFields should NOT be called
+    expect(ghl.updateContactCustomFields).not.toHaveBeenCalled();
   });
 
-  test("adds 'setter-booked' tag for booked disposition", async () => {
-    ghl.isConfigured.mockReturnValue(true);
-    const req = { method: "POST", headers: {}, body: BOOKED_PAYLOAD };
-    const res = makeRes();
-    await handler(req, res);
-
-    expect(ghl.addContactTags).toHaveBeenCalledWith("ghl_contact_1", ["setter-booked"]);
-  });
-
-  test("adds 'setter-voicemail' tag for voicemail disposition", async () => {
+  test("adds 'setter:voicemail' tag for voicemail outcome", async () => {
     ghl.isConfigured.mockReturnValue(true);
     const req = { method: "POST", headers: {}, body: VOICEMAIL_PAYLOAD };
     const res = makeRes();
     await handler(req, res);
 
-    expect(ghl.addContactTags).toHaveBeenCalledWith("ghl_contact_2", ["setter-voicemail"]);
+    expect(ghl.addContactTags).toHaveBeenCalledWith("ghl_contact_2", ["setter:voicemail"]);
   });
 
-  test("does not call GHL when contact_id is missing", async () => {
+  test("adds 'setter:no-answer' tag for no_answer outcome", async () => {
+    ghl.isConfigured.mockReturnValue(true);
+    const req = { method: "POST", headers: {}, body: NO_ANSWER_PAYLOAD };
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(ghl.addContactTags).toHaveBeenCalledWith("ghl_contact_3", ["setter:no-answer"]);
+  });
+
+  test("does not call GHL when ghl_contact_id is missing", async () => {
     ghl.isConfigured.mockReturnValue(true);
     const req = {
       method: "POST", headers: {},
