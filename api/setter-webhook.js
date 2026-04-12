@@ -54,6 +54,8 @@ const { SETTER_ANALYSIS_QUESTIONS } = require("../src/agents/setter-prompt");
 // Set GHL_DPC04_WEBHOOK_URL in Vercel env vars once the workflow is published.
 const DPC04_WEBHOOK_URL = process.env.GHL_DPC04_WEBHOOK_URL;
 
+const outboundCadence = require("../src/lib/setter-outbound-cadence");
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -137,6 +139,48 @@ module.exports = async function handler(req, res) {
       console.warn(
         "[setter-webhook] outcome=reschedule but GHL_DPC04_WEBHOOK_URL not set — DPC-04 not triggered"
       );
+    }
+
+    // -----------------------------------------------------------------------
+    // Outbound cadence for no-answer / voicemail outcomes
+    // -----------------------------------------------------------------------
+    if (outcome === "no_answer" || outcome === "voicemail") {
+      outboundCadence.triggerOutboundCadence({
+        contactId,
+        firstName: metadata?.first_name || "",
+        phone: payload.to || payload.phone_number || "",
+        prequalAmount: metadata?.prequal_amount || "",
+        appointmentTime: metadata?.appointment_time || "",
+        primaryFico: metadata?.primary_fico || "",
+        closerName: metadata?.closer_name || "",
+        analyzerRecommendation: metadata?.analyzer_recommendation || "",
+        originalCallId: call_id,
+        triggerReason: outcome
+      }).catch((err) => {
+        console.error(
+          `[setter-webhook] Outbound cadence trigger failed for ${contactId}:`,
+          err.message
+        );
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // 3-way text handoff for confirmed outcome
+    // -----------------------------------------------------------------------
+    if (outcome === "confirmed") {
+      outboundCadence.triggerThreeWayHandoff({
+        contactId,
+        firstName: metadata?.first_name || "",
+        prequalAmount: metadata?.prequal_amount || "",
+        appointmentTime: metadata?.appointment_time || "",
+        closerName: metadata?.closer_name || "",
+        zoomLink: metadata?.zoom_link || ""
+      }).catch((err) => {
+        console.error(
+          `[setter-webhook] 3-way handoff trigger failed for ${contactId}:`,
+          err.message
+        );
+      });
     }
   } else {
     console.warn("[setter-webhook] No ghl_contact_id in metadata — skipping GHL update");

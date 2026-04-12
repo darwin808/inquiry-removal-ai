@@ -56,6 +56,10 @@
       "dest": "/api/mailgun-inbound.js"
     },
     {
+      "src": "^/api/trigger-setter-call$",
+      "dest": "/api/trigger-setter-call.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
