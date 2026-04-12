@@ -106,15 +106,15 @@ function buildSetterCallConfig(requestData, overrides = {}) {
   } = requestData;
 
   const config = {
-    phone_number,
+    phoneNumber: phone_number,
     task: SETTER_TASK,
     voice: "nat",
-    first_sentence: "Hey, is this {{first_name}}?",
-    max_duration: 15,
+    firstSentence: `Hey, is this ${first_name || "{{first_name}}"}?`,
+    maxDuration: 15,
     amd: true,
-    wait_for_greeting: true,
+    waitForGreeting: true,
     record: true,
-    request_data: {
+    requestData: {
       ghl_contact_id,
       first_name,
       appointment_time,
@@ -133,7 +133,7 @@ function buildSetterCallConfig(requestData, overrides = {}) {
       primary_fico,
       closer_name
     },
-    webhook: process.env.WEBHOOK_BASE_URL
+    webhookUrl: process.env.WEBHOOK_BASE_URL
       ? `${process.env.WEBHOOK_BASE_URL}/api/setter-webhook`
       : undefined,
     ...overrides

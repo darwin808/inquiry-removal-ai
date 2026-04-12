@@ -59,7 +59,10 @@ async function createCall({
   dtmfSequence,
   webhookUrl,
   metadata,
-  maxDuration
+  maxDuration,
+  firstSentence,
+  amd,
+  record
 }) {
   const body = {
     phone_number: phoneNumber,
@@ -68,6 +71,9 @@ async function createCall({
   };
 
   if (maxDuration) body.max_duration = maxDuration;
+  if (firstSentence) body.first_sentence = firstSentence;
+  if (amd) body.amd = amd;
+  if (record) body.record = record;
 
   if (requestData) body.request_data = requestData;
   if (transferNumber) body.transfer_phone_number = transferNumber;

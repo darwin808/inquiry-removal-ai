@@ -27,7 +27,7 @@ describe("buildSetterCallConfig", () => {
 
   test("returns object with phone_number from requestData", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.phone_number).toBe("+15551234567");
+    expect(config.phoneNumber).toBe("+15551234567");
   });
 
   test("returns object with task set to SETTER_TASK", () => {
@@ -37,14 +37,14 @@ describe("buildSetterCallConfig", () => {
 
   test("returns object with request_data passed through", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.request_data).toBeDefined();
-    expect(config.request_data.ghl_contact_id).toBe("ghl_1");
-    expect(config.request_data.first_name).toBe("John");
+    expect(config.requestData).toBeDefined();
+    expect(config.requestData.ghl_contact_id).toBe("ghl_1");
+    expect(config.requestData.first_name).toBe("John");
   });
 
   test("sets wait_for_greeting to true", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.wait_for_greeting).toBe(true);
+    expect(config.waitForGreeting).toBe(true);
   });
 
   test("sets default voice to 'nat' when BLAND_VOICE env is not set", () => {
@@ -64,12 +64,12 @@ describe("buildSetterCallConfig", () => {
   test("sets webhook when WEBHOOK_BASE_URL env is set", () => {
     process.env.WEBHOOK_BASE_URL = "https://inquiry-removal.vercel.app";
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.webhook).toBe("https://inquiry-removal.vercel.app/api/setter-webhook");
+    expect(config.webhookUrl).toBe("https://inquiry-removal.vercel.app/api/setter-webhook");
   });
 
   test("webhook is undefined when WEBHOOK_BASE_URL env is not set", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.webhook).toBeUndefined();
+    expect(config.webhookUrl).toBeUndefined();
   });
 
   // ---- Metadata ----
