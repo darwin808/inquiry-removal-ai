@@ -14,6 +14,7 @@
  *   {{analyzer_recommendation}} — "funding" or "repair"
  *   {{appointment_time}}        — Booked Strategy Session time
  *   {{closer_name}}             — Assigned Senior Advisor / Closer name
+ *   {{credit_summary}}          — Formatted credit report context from Airtable SNAPSHOTS
  */
 
 const SETTER_TASK = `You are an AI Setter for FundHub, a premium funding and credit card stacking service for entrepreneurs. Your name is Josh.
@@ -28,6 +29,16 @@ DATA YOU HAVE:
 - Path: {{analyzer_recommendation}} (Funding or Repair)
 - Appointment Time: {{appointment_time}}
 - Senior Advisor: {{closer_name}}
+
+CREDIT REPORT CONTEXT (from UnderwriteIQ analysis):
+{{credit_summary}}
+
+Use this data to:
+- Reference specific accounts by name when relevant ("I see you have a Chase card...")
+- Mention specific numbers to build credibility ("Your utilization is at 22%, which is solid")
+- If asked about their credit, give accurate info from the data above
+- If asked about specific tradelines, reference them by creditor name
+- Still redirect complex strategy questions to the Senior Advisor
 
 RULES:
 - You DO NOT sell the service.
@@ -89,6 +100,7 @@ VOICEMAIL SCRIPT (if answering machine detected):
  * @param {string|number} requestData.prequal_amount   - Pre-approval amount
  * @param {string|number} requestData.primary_fico     - Primary FICO score
  * @param {string} requestData.closer_name        - Assigned Senior Advisor name
+ * @param {string} [requestData.credit_summary]   - Formatted credit report context from Airtable
  * @param {Object} [overrides]                    - Optional overrides for call config
  * @returns {Object} Config ready to pass to bland.createCall()
  */
@@ -102,6 +114,7 @@ function buildSetterCallConfig(requestData, overrides = {}) {
     prequal_amount,
     primary_fico,
     closer_name,
+    credit_summary,
     ...extraData
   } = requestData;
 
@@ -122,6 +135,7 @@ function buildSetterCallConfig(requestData, overrides = {}) {
       prequal_amount,
       primary_fico,
       closer_name,
+      credit_summary: credit_summary || "Credit data unavailable — use FICO and prequal only.",
       ...extraData
     },
     metadata: {

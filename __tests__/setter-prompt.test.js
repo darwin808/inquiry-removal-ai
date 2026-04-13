@@ -49,14 +49,14 @@ describe("buildSetterCallConfig", () => {
 
   test("sets default voice to 'nat' when BLAND_VOICE env is not set", () => {
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    expect(config.voice).toBe("nat");
+    expect(config.voice).toBe("mason");
   });
 
   test("voice remains 'nat' regardless of BLAND_VOICE env (voice is hardcoded in setter prompt)", () => {
     process.env.BLAND_VOICE = "david";
     const config = buildSetterCallConfig(BASE_REQUEST_DATA);
-    // setter-prompt.js hardcodes voice to "nat"; BLAND_VOICE env is not read here
-    expect(config.voice).toBe("nat");
+    // setter-prompt.js hardcodes voice to "mason"; BLAND_VOICE env is not read here
+    expect(config.voice).toBe("mason");
   });
 
   // ---- Webhook URL ----

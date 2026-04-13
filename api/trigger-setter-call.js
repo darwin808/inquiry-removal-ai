@@ -32,6 +32,7 @@
 const bland = require("../src/lib/bland-client");
 const { buildSetterCallConfig } = require("../src/agents/setter-prompt");
 const { requireAuth } = require("../src/lib/auth");
+const { listRecords, getRecord } = require("../src/lib/airtable-client");
 
 // Grade thresholds
 const VIP_PREQUAL_THRESHOLD = 50000;
@@ -110,6 +111,9 @@ module.exports = async function handler(req, res) {
   // Build Bland AI call config
   // -------------------------------------------------------------------------
   try {
+    // Fetch credit report context from Airtable (non-blocking fallback on failure)
+    const creditSummary = await fetchCreditSummary(contactId);
+
     // request_data is injected into the prompt as {{key}} variables
     const requestData = buildRequestData({
       firstName,
@@ -119,7 +123,8 @@ module.exports = async function handler(req, res) {
       analyzerRecommendation: recommendation,
       appointmentTime: appointmentTime || "",
       closerName: closerName || "your Senior Advisor",
-      grade
+      grade,
+      creditSummary
     });
 
     // metadata is passed through on the webhook callback (not injected into prompt)
@@ -215,7 +220,8 @@ function buildRequestData({
   analyzerRecommendation,
   appointmentTime,
   closerName,
-  grade
+  grade,
+  creditSummary
 }) {
   // Format prequal for speech ("$125,000" or "$0" if not applicable)
   const prequalFormatted =
@@ -250,6 +256,177 @@ function buildRequestData({
 
     // Contextual flags that can be used in prompt branching
     repair_path: isRepair ? "true" : "false",
-    funding_path: isRepair ? "false" : "true"
+    funding_path: isRepair ? "false" : "true",
+
+    // Credit report context injected as {{credit_summary}} in the prompt
+    credit_summary: creditSummary || "Credit data unavailable — use FICO and prequal only."
   };
 }
+
+// ---------------------------------------------------------------------------
+// Credit summary fetcher
+// ---------------------------------------------------------------------------
+
+const CREDIT_SUMMARY_FALLBACK = "Credit data unavailable — use FICO and prequal only.";
+
+/**
+ * Fetch credit report context from Airtable and return a formatted text summary
+ * suitable for injection as {{credit_summary}} in the setter prompt.
+ *
+ * Steps:
+ *   1. Find the CLIENTS record matching the GHL contact ID
+ *   2. Pull the latest SNAPSHOTS linked to that client
+ *   3. Build a concise text block with scores, utilization, negatives, inquiries,
+ *      top tradelines, and any derogatory accounts
+ *
+ * @param {string} contactId - GHL contact ID (ghl_contact_id field in CLIENTS)
+ * @returns {Promise<string>} Formatted credit summary or fallback string on error
+ */
+async function fetchCreditSummary(contactId) {
+  try {
+    if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
+      console.warn("[fetchCreditSummary] Airtable env vars not configured — using fallback");
+      return CREDIT_SUMMARY_FALLBACK;
+    }
+
+    // Step 1: Find CLIENTS record by ghl_contact_id
+    const clientsResult = await listRecords("CLIENTS", {
+      filterByFormula: `{ghl_contact_id} = "${contactId}"`,
+      maxRecords: 1
+    });
+
+    const clientRecord = clientsResult.records && clientsResult.records[0];
+    if (!clientRecord) {
+      console.warn(`[fetchCreditSummary] No CLIENTS record found for contact ${contactId}`);
+      return CREDIT_SUMMARY_FALLBACK;
+    }
+
+    const clientFields = clientRecord.fields || {};
+
+    // Step 2: Get the latest SNAPSHOTS linked to this client
+    // Linked record fields store arrays of record IDs
+    const snapshotLinks =
+      clientFields["SNAPSHOTS"] ||
+      clientFields["SNAPSHOTS 2"] ||
+      [];
+
+    if (!snapshotLinks.length) {
+      console.warn(`[fetchCreditSummary] No SNAPSHOTS linked to client ${clientRecord.id}`);
+      return CREDIT_SUMMARY_FALLBACK;
+    }
+
+    // Fetch the most recent snapshot (first link)
+    const snapshotRecord = await getRecord("SNAPSHOTS", snapshotLinks[0]);
+    const snap = snapshotRecord.fields || {};
+
+    // Step 3: Build summary string
+    const lines = [];
+
+    // Per-bureau FICO scores
+    const ex = snap.fico_experian || snap.experian_fico || snap.ex_fico || null;
+    const tu = snap.fico_transunion || snap.transunion_fico || snap.tu_fico || null;
+    const eq = snap.fico_equifax || snap.equifax_fico || snap.eq_fico || null;
+    const scoreParts = [];
+    if (ex) scoreParts.push(`EX: ${ex}`);
+    if (tu) scoreParts.push(`TU: ${tu}`);
+    if (eq) scoreParts.push(`EQ: ${eq}`);
+    if (scoreParts.length) {
+      lines.push(`FICO Scores — ${scoreParts.join(", ")}`);
+    }
+
+    // Utilization
+    const util = snap.utilization_pct || snap.overall_utilization || snap.utilization || null;
+    if (util !== null && util !== undefined) {
+      lines.push(`Overall Utilization: ${util}%`);
+    }
+
+    // Negative items
+    const negCount = snap.negative_items_count || snap.num_negative_items || snap.negative_count || null;
+    if (negCount !== null && negCount !== undefined) {
+      lines.push(`Negative Items: ${negCount}`);
+    }
+
+    // Inquiries
+    const inqCount = snap.inquiry_count || snap.num_inquiries || snap.inquiries || null;
+    if (inqCount !== null && inqCount !== undefined) {
+      lines.push(`Inquiries: ${inqCount}`);
+    }
+
+    // Top tradelines — stored as JSON string or structured field
+    const tradelinesRaw =
+      snap.tradelines ||
+      snap.top_tradelines ||
+      snap.tradeline_summary ||
+      null;
+
+    if (tradelinesRaw) {
+      try {
+        const tradelines = typeof tradelinesRaw === "string"
+          ? JSON.parse(tradelinesRaw)
+          : tradelinesRaw;
+
+        if (Array.isArray(tradelines) && tradelines.length) {
+          lines.push("Top Tradelines:");
+          tradelines.slice(0, 5).forEach((tl) => {
+            const name = tl.creditor || tl.name || tl.account_name || "Unknown";
+            const balance = tl.balance !== undefined ? `$${Number(tl.balance).toLocaleString("en-US", { maximumFractionDigits: 0 })}` : null;
+            const limit = tl.limit !== undefined ? `$${Number(tl.limit).toLocaleString("en-US", { maximumFractionDigits: 0 })}` : null;
+            const status = tl.status || tl.payment_status || null;
+            const parts = [name];
+            if (balance) parts.push(`bal ${balance}`);
+            if (limit) parts.push(`lim ${limit}`);
+            if (status) parts.push(status);
+            lines.push(`  - ${parts.join(", ")}`);
+          });
+        }
+      } catch (_) {
+        // Non-JSON tradeline field — include raw if it's a short string
+        if (typeof tradelinesRaw === "string" && tradelinesRaw.length < 500) {
+          lines.push(`Tradelines: ${tradelinesRaw}`);
+        }
+      }
+    }
+
+    // Negative/derogatory items
+    const negativesRaw =
+      snap.negative_accounts ||
+      snap.derogatory_items ||
+      snap.negative_tradelines ||
+      null;
+
+    if (negativesRaw) {
+      try {
+        const negatives = typeof negativesRaw === "string"
+          ? JSON.parse(negativesRaw)
+          : negativesRaw;
+
+        if (Array.isArray(negatives) && negatives.length) {
+          lines.push("Negative Items:");
+          negatives.slice(0, 5).forEach((neg) => {
+            const name = neg.creditor || neg.name || neg.account_name || "Unknown";
+            const type = neg.type || neg.account_type || null;
+            const amount = neg.amount !== undefined ? `$${Number(neg.amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}` : null;
+            const parts = [name];
+            if (type) parts.push(type);
+            if (amount) parts.push(amount);
+            lines.push(`  - ${parts.join(", ")}`);
+          });
+        }
+      } catch (_) {
+        // Skip unparseable negatives
+      }
+    }
+
+    if (!lines.length) {
+      console.warn(`[fetchCreditSummary] Snapshot found but no recognizable fields for contact ${contactId}`);
+      return CREDIT_SUMMARY_FALLBACK;
+    }
+
+    return lines.join("\n");
+  } catch (err) {
+    console.error(`[fetchCreditSummary] Error fetching credit data for contact ${contactId}:`, err.message);
+    return CREDIT_SUMMARY_FALLBACK;
+  }
+}
+
+module.exports._fetchCreditSummary = fetchCreditSummary;
