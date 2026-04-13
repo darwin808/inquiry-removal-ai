@@ -108,7 +108,7 @@ function buildSetterCallConfig(requestData, overrides = {}) {
   const config = {
     phoneNumber: phone_number,
     task: SETTER_TASK,
-    voice: "nat",
+    voice: process.env.SETTER_VOICE || "mason",
     firstSentence: `Hey, is this ${first_name || "{{first_name}}"}?`,
     maxDuration: 15,
     amd: true,
