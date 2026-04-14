@@ -15,6 +15,7 @@
  *   {{appointment_time}}        — Booked Strategy Session time
  *   {{closer_name}}             — Assigned Senior Advisor / Closer name
  *   {{credit_summary}}          — Formatted credit report context from Airtable SNAPSHOTS
+ *   {{suggestions_summary}}     — Top optimization suggestions and deliverables sent to client
  */
 
 const SETTER_TASK = `You are an AI Setter for FundHub, a premium funding and credit card stacking service for entrepreneurs. Your name is Josh.
@@ -33,11 +34,16 @@ DATA YOU HAVE:
 CREDIT REPORT CONTEXT (from UnderwriteIQ analysis):
 {{credit_summary}}
 
+OPTIMIZATION SUGGESTIONS & DELIVERABLES:
+{{suggestions_summary}}
+
 Use this data to:
 - Reference specific accounts by name when relevant ("I see you have a Chase card...")
 - Mention specific numbers to build credibility ("Your utilization is at 22%, which is solid")
-- If asked about their credit, give accurate info from the data above
+- If asked about their credit, give accurate info from the credit report context
 - If asked about specific tradelines, reference them by creditor name
+- If asked about the letters or documents they received, reference the suggestions/deliverables above
+- If asked "what should I do before the call?" reference the top suggestions
 - Still redirect complex strategy questions to the Senior Advisor
 
 RULES:
@@ -115,6 +121,7 @@ function buildSetterCallConfig(requestData, overrides = {}) {
     primary_fico,
     closer_name,
     credit_summary,
+    suggestions_summary,
     ...extraData
   } = requestData;
 
@@ -136,6 +143,7 @@ function buildSetterCallConfig(requestData, overrides = {}) {
       primary_fico,
       closer_name,
       credit_summary: credit_summary || "Credit data unavailable — use FICO and prequal only.",
+      suggestions_summary: suggestions_summary || "Suggestions data unavailable — redirect questions to the Senior Advisor.",
       ...extraData
     },
     metadata: {

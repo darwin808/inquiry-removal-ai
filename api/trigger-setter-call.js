@@ -113,6 +113,7 @@ module.exports = async function handler(req, res) {
   try {
     // Fetch credit report context from Airtable (non-blocking fallback on failure)
     const creditSummary = await fetchCreditSummary(contactId);
+    const suggestionsSummary = await fetchSuggestionsSummary(contactId);
 
     // request_data is injected into the prompt as {{key}} variables
     const requestData = buildRequestData({
@@ -124,7 +125,8 @@ module.exports = async function handler(req, res) {
       appointmentTime: appointmentTime || "",
       closerName: closerName || "your Senior Advisor",
       grade,
-      creditSummary
+      creditSummary,
+      suggestionsSummary
     });
 
     // metadata is passed through on the webhook callback (not injected into prompt)
@@ -221,7 +223,8 @@ function buildRequestData({
   appointmentTime,
   closerName,
   grade,
-  creditSummary
+  creditSummary,
+  suggestionsSummary
 }) {
   // Format prequal for speech ("$125,000" or "$0" if not applicable)
   const prequalFormatted =
@@ -259,7 +262,8 @@ function buildRequestData({
     funding_path: isRepair ? "false" : "true",
 
     // Credit report context injected as {{credit_summary}} in the prompt
-    credit_summary: creditSummary || "Credit data unavailable — use FICO and prequal only."
+    credit_summary: creditSummary || "Credit data unavailable — use FICO and prequal only.",
+    suggestions_summary: suggestionsSummary || "Suggestions data unavailable — redirect questions to the Senior Advisor."
   };
 }
 
@@ -429,4 +433,66 @@ async function fetchCreditSummary(contactId) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Suggestions & deliverables fetcher
+// ---------------------------------------------------------------------------
+
+const SUGGESTIONS_FALLBACK = "Suggestions data unavailable — redirect questions to the Senior Advisor.";
+
+async function fetchSuggestionsSummary(contactId) {
+  const airtableKey = process.env.AIRTABLE_API_KEY;
+  const baseId = process.env.AIRTABLE_BASE_ID;
+  if (!airtableKey || !baseId) return SUGGESTIONS_FALLBACK;
+
+  try {
+    // Find client by ghl_contact_id
+    const clientsUrl = `https://api.airtable.com/v0/${baseId}/CLIENTS?filterByFormula={ghl_contact_id}="${contactId}"&maxRecords=1`;
+    const clientsResp = await fetch(clientsUrl, {
+      headers: { Authorization: `Bearer ${airtableKey}` }
+    });
+    if (!clientsResp.ok) return SUGGESTIONS_FALLBACK;
+    const clientsData = await clientsResp.json();
+    const client = clientsData.records?.[0];
+    if (!client) return SUGGESTIONS_FALLBACK;
+
+    const fields = client.fields || {};
+    const lines = [];
+
+    // Top suggestions / optimization findings
+    const topFixes = fields.latest_top_fixes || fields.top_fixes || fields.credit_suggestions || "";
+    if (topFixes) {
+      lines.push("TOP OPTIMIZATION SUGGESTIONS:");
+      const fixes = topFixes.split("\n").filter(Boolean).slice(0, 5);
+      fixes.forEach(f => lines.push(`  - ${f.trim()}`));
+    }
+
+    // Outcome / recommendation
+    const outcome = fields.latest_underwriteiq_outcome || fields.analyzer_path || "";
+    if (outcome) lines.push(`Outcome: ${outcome}`);
+
+    // Pre-approval
+    const prequal = fields.latest_preapproval_amount || fields.Prequal || "";
+    if (prequal) lines.push(`Pre-Approval Amount: $${Number(prequal).toLocaleString()}`);
+
+    // Letters / documents status
+    const lettersReady = fields.letters_ready || "";
+    if (lettersReady) lines.push("Letters/Documents: READY — sent to client");
+
+    // Confidence
+    const confidence = fields.latest_confidence || "";
+    if (confidence) lines.push(`Analysis Confidence: ${confidence}`);
+
+    // Risk flags
+    const riskFlags = fields.latest_risk_flags || "";
+    if (riskFlags) lines.push(`Risk Flags: ${riskFlags}`);
+
+    if (lines.length === 0) return SUGGESTIONS_FALLBACK;
+    return lines.join("\n");
+  } catch (err) {
+    console.error(`[fetchSuggestionsSummary] Error for contact ${contactId}:`, err.message);
+    return SUGGESTIONS_FALLBACK;
+  }
+}
+
 module.exports._fetchCreditSummary = fetchCreditSummary;
+module.exports._fetchSuggestionsSummary = fetchSuggestionsSummary;
