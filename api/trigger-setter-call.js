@@ -174,8 +174,12 @@ module.exports = async function handler(req, res) {
       grade_label: gradeLabel
     });
   } catch (err) {
-    console.error(`[trigger-setter-call] Failed to launch call for contact ${contactId}:`, err.message);
-    return res.status(500).json({ ok: false, error: "Internal server error" });
+    console.error(`[trigger-setter-call] Failed to launch call for contact ${contactId}:`, err.message, err.stack);
+    return res.status(500).json({
+      ok: false,
+      error: "Internal server error",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined
+    });
   }
 };
 
@@ -240,6 +244,7 @@ function buildRequestData({
     // Core fields used by current setter-prompt.js template
     lead_first_name: firstName,
     lead_last_name: "",
+    phone_number: phone,
     lead_phone: phone,
     rep_name: closerName,
     company_name: "FundHub",
