@@ -48,7 +48,7 @@ const CASE_RECORD_1 = {
   id: "recCASE1",
   fields: {
     client: ["recCLIENT1"],
-    selected_bureaus: "EX"
+    selected_bureaus_raw: "EX"
   }
 };
 

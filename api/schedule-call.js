@@ -109,8 +109,10 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: "Client SSN not available — cannot place bureau call" });
     }
 
-    // 4. Parse bureaus
-    const bureaus = (selected_bureaus_raw || "EX")
+    // 4. Parse bureaus. No silent Experian default — an empty selection falls
+    // through to the bureaus.length === 0 guard below and returns a 400, so we
+    // never place the wrong bureau call when the field is missing.
+    const bureaus = (selected_bureaus_raw || "")
       .split(",")
       .map((b) => b.trim().toUpperCase())
       .filter((b) => BUREAU_CONFIGS[b]);

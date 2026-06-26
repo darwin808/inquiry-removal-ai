@@ -156,8 +156,10 @@ module.exports = async function handler(req, res) {
         throw new Error("Client SSN not available");
       }
 
-      // 4. Parse bureaus from case fields (default EX)
-      const bureaus = (caseFields.selected_bureaus_raw || "EX")
+      // 4. Parse bureaus from case fields. No silent Experian default — an empty
+      // selection falls through to the bureaus.length === 0 guard below and errors
+      // out, so we never dispatch the wrong bureau when the field is missing.
+      const bureaus = (caseFields.selected_bureaus_raw || "")
         .split(",")
         .map((b) => b.trim().toUpperCase())
         .filter((b) => BUREAU_CONFIGS[b]);

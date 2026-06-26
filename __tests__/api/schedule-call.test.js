@@ -255,6 +255,16 @@ describe("POST /api/schedule-call", () => {
     expect(res._body.bureaus).toContain("EX");
   });
 
+  test("rejects empty bureau selection instead of defaulting to Experian", async () => {
+    isBusinessHours.mockReturnValue(true);
+    const req = { ...BASE_REQ, body: { ...BASE_REQ.body, selected_bureaus_raw: "" } };
+    const res = makeRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._body.error).toContain("No valid bureaus");
+    expect(bland.createCall).not.toHaveBeenCalled();
+  });
+
   test("returns 500 on unexpected error", async () => {
     airtable.getRecord = jest.fn().mockRejectedValue(new Error("Network error"));
     isBusinessHours.mockReturnValue(true);
